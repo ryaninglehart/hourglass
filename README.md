@@ -56,7 +56,7 @@ so downstream readers keep seeing the last good one, and exits non-zero. That
 refusal is the part of this project worth looking at first.
 
 ```
-make gate         watch it refuse to publish              (exit 1)
+make gate         watch it refuse to publish              (exit 2)
 make run          acknowledge in writing, publish         (exit 0)
 make check        lint, 461 tests, gate, publish, analytics, data dictionary
 make mutation     mutation-test disclosure.py — see docs/MUTATION.md
@@ -66,6 +66,10 @@ make digest       print the weekly digest
 make analytics    run the ten queries in sql/analytics.sql
 make localstack-up && make run-s3      against real S3 APIs in Docker
 ```
+
+`make gate` exits 2 rather than 1 because that is make's code for a failed
+recipe; the pipeline process underneath it exits 1. Both are the refusal, seen
+from different heights.
 
 ---
 

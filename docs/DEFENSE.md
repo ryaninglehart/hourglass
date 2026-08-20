@@ -378,9 +378,9 @@ One defensive detail worth pointing at: columns absent from the target's
 lands one field short beats an audit row that does not land.
 
 **You'll be asked:** *"What happens when a check fails?"* — Walk them through
-`make gate`: seventeen checks run, one blocks, publication halts, exit code 1, the
-report is still written. Then `make run` with the acknowledgement publishes and
-records why. Offer to run it.
+`make gate`: seventeen checks run, one blocks, publication halts, `make` exits 2
+(the pipeline process itself exits 1), the report is still written. Then
+`make run` with the acknowledgement publishes and records why. Offer to run it.
 
 ---
 

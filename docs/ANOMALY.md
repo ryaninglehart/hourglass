@@ -168,7 +168,7 @@ The generator is deterministic — same seed, same bytes, asserted in
 `tests/test_pipeline.py::TestGenerator::test_is_deterministic`.
 
 ```bash
-make gate                              # blocks, exits 1
+make gate                              # blocks, exits 2 (make's code; the pipeline exits 1)
 python scripts/run_analytics.py --only 4   # where the measure is thin, by month
 ```
 
