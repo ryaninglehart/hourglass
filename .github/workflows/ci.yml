@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tests
+        run: python -m pytest -q
+        env:
+          PYTHONPATH: src
+
+      # The gate is not decoration. An unacknowledged blocking failure exits
+      # non-zero, so this step asserts that the build actually fails when the
+      # data is not fit to publish. If this step ever passes, the gate is off.
+      - name: Quality gate blocks an unacknowledged failure
+        run: |
+          set +e
+          python -m hourglass.pipeline --no-s3 --quiet
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "::error::Pipeline published despite an unacknowledged blocking failure."
+            exit 1
+          fi
+          echo "Gate held: exit $code"
+        env:
+          PYTHONPATH: src
+
+      - name: Publishes once the failure is acknowledged
+        run: |
+          python -m hourglass.pipeline --no-s3 --quiet --no-regenerate \
+            --acknowledge "uom_resolution_coverage=CI run; defect is seeded on purpose"
+        env:
+          PYTHONPATH: src
+
+      - name: Analytics run clean
+        run: python scripts/run_analytics.py --rows 3
+        env:
+          PYTHONPATH: src
+
+      # Regenerates the data dictionary and exits non-zero if any warehouse
+      # column is missing a data-protection classification. An unclassified
+      # column blocks publication at runtime; catching it here means it never
+      # reaches a branch somebody is waiting on.
+      - name: Data dictionary is current and every column is classified
+        run: |
+          python scripts/build_data_dictionary.py
+          git diff --exit-code docs/DATA_DICTIONARY.md \
+            || (echo "::error::DATA_DICTIONARY.md is stale. Run: make docs"; exit 1)
+        env:
+          PYTHONPATH: src
+
+      - name: Build dashboard
+        run: python scripts/build_dashboard.py
+        env:
+          PYTHONPATH: src
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12'
+        with:
+          name: hourglass-output
+          path: |
+            dashboard.html
+            data/out/reports/quality_report.md
+            data/out/reports/weekly_digest.md
+            data/out/reports/pipeline_runs.jsonl

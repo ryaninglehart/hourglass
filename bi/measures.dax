@@ -1,0 +1,312 @@
+// =========================================================================
+// Hourglass -- Power BI measures
+//
+// Paste each block into Power BI Desktop (Modeling > New measure) after
+// importing the CSVs in data/out/bi/ and drawing the relationships listed in
+// relationships.md.
+//
+// Two rules run through all of it.
+//
+// 1. Rates are MEASURES, never calculated columns. A calculated column
+//    evaluates row by row and then gets averaged by the visual, which gives
+//    every authorisation equal weight regardless of size. A measure evaluates
+//    over whatever the visual is showing, so the numerator and denominator are
+//    summed first and divided once. The difference is not cosmetic: a report
+//    built the other way will disagree with the warehouse and the warehouse
+//    will be right.
+//
+// 2. Division goes through DIVIDE(). The "/" operator returns Infinity on a
+//    zero denominator and that renders as a number. DIVIDE returns BLANK,
+//    which renders as empty -- which is the truth.
+// =========================================================================
+
+
+// -------------------------------------------------------------------------
+// Base measures
+// -------------------------------------------------------------------------
+
+Units Authorized =
+SUM ( fact_authorization[units_authorized] )
+
+
+Units Delivered =
+SUM ( fact_session[units_delivered] )
+
+
+// Only completed sessions consume authorised units. A cancellation is not
+// delivery, and counting it as such is the single most common way an
+// authorisation report overstates care.
+//
+// The `uom_resolved` filter is the second half and is easy to leave out. A
+// session whose unit of measure could not be determined has `units_delivered`
+// set to 0 by transform.py, so including it happens to give the same total --
+// today. That is an invariant of the transform, not of this measure, and a
+// measure that is only correct because of what some other module happens to
+// write is a measure waiting to be wrong. Both executed engines filter on
+// both flags; so does this.
+Units Delivered (Completed) =
+CALCULATE (
+    SUM ( fact_session[units_delivered] ),
+    fact_session[is_completed] = 1,
+    fact_session[uom_resolved] = 1
+)
+
+
+// Built from minutes, not from units, precisely so it does not need to know
+// each service's conversion factor -- transform.py already applied it.
+//
+// Filtered on both flags for the same reason as the measure above: a
+// cancelled session is not delivery, and a session whose unit of measure could
+// not be resolved has no readable duration. Excluding them makes this figure a
+// floor rather than an estimate, which is what docs/ANOMALY.md argues for and
+// what the SQL and pandas implementations both do.
+Hours Delivered =
+CALCULATE (
+    DIVIDE ( SUM ( fact_session[minutes_delivered] ), 60 ),
+    fact_session[is_completed] = 1,
+    fact_session[uom_resolved] = 1
+)
+
+
+Session Count =
+DISTINCTCOUNT ( fact_session[session_id] )
+
+
+Authorization Count =
+DISTINCTCOUNT ( fact_authorization[auth_id] )
+
+
+Children Served =
+DISTINCTCOUNT ( dim_client[client_id] )
+
+
+// -------------------------------------------------------------------------
+// The headline rate
+// -------------------------------------------------------------------------
+
+// Weighted utilisation. Because this is a measure, a card showing "all payers"
+// sums both sides across every authorisation before dividing -- a 2,000-unit
+// authorisation moves the number 2,000 times as much as a 1-unit one, which is
+// correct. Written as a calculated column and averaged, the 1-unit
+// authorisation would count just as much.
+Authorization Utilization =
+DIVIDE (
+    [Units Delivered (Completed)],
+    [Units Authorized]
+)
+
+
+// Clamped per authorisation, then summed -- SUM(max(0, a - d)), not
+// max(0, SUM(a) - SUM(d)). With any over-delivered authorisation in scope the
+// two differ, and analytics.py clamps per row. Two consumers of one warehouse
+// disagreeing by a rounding-sized amount is exactly the kind of discrepancy
+// that costs an afternoon to track down.
+Units Unused =
+SUMX (
+    fact_authorization,
+    VAR Authorized = fact_authorization[units_authorized]
+    VAR Delivered  =
+        CALCULATE (
+            [Units Delivered (Completed)],
+            ALLEXCEPT ( fact_authorization, fact_authorization[auth_id] )
+        )
+    RETURN MAX ( Authorized - Delivered, 0 )
+)
+
+
+// Hours are NOT units / 4. A unit is 15 minutes for 97153 and its ABA
+// siblings, 45 for a speech session and 30 for a medical visit, which is why
+// dim_service carries minutes_per_unit. Dividing by 4 across the board
+// understates speech and medical by two to three times.
+Hours Unused =
+SUMX (
+    fact_authorization,
+    VAR Authorized = fact_authorization[units_authorized]
+    VAR Delivered  =
+        CALCULATE (
+            [Units Delivered (Completed)],
+            ALLEXCEPT ( fact_authorization, fact_authorization[auth_id] )
+        )
+    VAR MinutesPerUnit = RELATED ( dim_service[minutes_per_unit] )
+    RETURN MAX ( Authorized - Delivered, 0 ) * DIVIDE ( MinutesPerUnit, 60 )
+)
+
+
+Hours Authorized =
+SUMX (
+    fact_authorization,
+    fact_authorization[units_authorized]
+        * DIVIDE ( RELATED ( dim_service[minutes_per_unit] ), 60 )
+)
+
+
+// -------------------------------------------------------------------------
+// Pace -- utilisation adjusted for how much of the period has elapsed
+// -------------------------------------------------------------------------
+
+// An authorisation a third of the way through its window should have delivered
+// about a third of its units. Judging it against 100% makes healthy delivery
+// look like a crisis and buries the authorisations that are genuinely behind.
+//
+// The as-of date is the last date on which a session was actually observed --
+// NOT the last date in dim_date. dim_date spans authorisation period ends, so
+// it runs about six months past the final session. Taking the maximum from the
+// dimension puts "today" in the future, which drives every elapsed fraction to
+// 1, makes Expected Units To Date identical to Units Authorized, and silently
+// collapses Delivery Pace onto Authorization Utilization. The measure keeps
+// returning a number the whole time.
+//
+// SELECTEDVALUE first, so a date slicer still works; the fact-derived maximum
+// is the fallback for a card with no slicer applied.
+As Of Date =
+VAR LastSessionKey =
+    CALCULATE ( MAX ( fact_session[date_key] ), ALL ( fact_session ) )
+VAR LastSessionDate =
+    CALCULATE (
+        MAX ( dim_date[full_date] ),
+        ALL ( dim_date ),
+        dim_date[date_key] = LastSessionKey
+    )
+RETURN
+    COALESCE ( SELECTEDVALUE ( dim_date[full_date] ), LastSessionDate )
+
+
+Expected Units To Date =
+SUMX (
+    fact_authorization,
+    VAR PeriodStart = RELATED ( dim_date[full_date] )
+    VAR Days        = fact_authorization[authorized_days]
+    VAR Elapsed     = DATEDIFF ( PeriodStart, [As Of Date], DAY ) + 1
+    VAR Fraction    = MIN ( MAX ( DIVIDE ( Elapsed, Days ), 0 ), 1 )
+    RETURN fact_authorization[units_authorized] * Fraction
+)
+
+
+Delivery Pace =
+DIVIDE (
+    [Units Delivered (Completed)],
+    [Expected Units To Date]
+)
+
+
+// -------------------------------------------------------------------------
+// Measure quality -- publish the coverage next to the number
+// -------------------------------------------------------------------------
+
+// Sessions whose unit of measure could not be determined are excluded from
+// every measure above. This reports how much of the data that is, so nobody
+// quotes a utilisation figure without knowing what it was computed over.
+//
+// The naming is deliberate: "Measure Coverage" invites a glance, where
+// "unresolved_uom_pct" gets filtered out of the report by whoever builds it.
+Sessions With Resolved UOM =
+CALCULATE (
+    [Session Count],
+    fact_session[uom_resolved] = 1
+)
+
+
+Measure Coverage =
+DIVIDE ( [Sessions With Resolved UOM], [Session Count] )
+
+
+Pct Sessions Excluded =
+1 - [Measure Coverage]
+
+
+// Bind the coverage to the visual so a card cannot show a utilisation figure
+// without the caveat travelling with it.
+Utilization Label =
+VAR Util     = [Authorization Utilization]
+VAR Coverage = [Measure Coverage]
+RETURN
+    IF (
+        ISBLANK ( Util ),
+        "no data",
+        FORMAT ( Util, "0.0%" )
+            & IF ( Coverage < 0.99,
+                   " (over " & FORMAT ( Coverage, "0.0%" ) & " of sessions)",
+                   "" )
+    )
+
+
+// -------------------------------------------------------------------------
+// Operational measures
+// -------------------------------------------------------------------------
+
+No Show Rate =
+DIVIDE (
+    CALCULATE ( [Session Count], fact_session[is_no_show] = 1 ),
+    [Session Count]
+)
+
+
+Cancellation Rate =
+DIVIDE (
+    CALCULATE ( [Session Count], fact_session[is_cancelled] = 1 ),
+    [Session Count]
+)
+
+
+// Distance from the operating floor, signed. Negative means behind.
+Variance To Floor =
+[Delivery Pace] - 0.90
+
+
+Pace Status =
+VAR Pace = [Delivery Pace]
+RETURN
+    SWITCH (
+        TRUE (),
+        ISBLANK ( Pace ),  "No authorisations",
+        Pace > 1.00,       "Over-delivered",
+        Pace >= 0.90,      "On track",
+        Pace >= 0.75,      "Behind",
+        "At risk"
+    )
+
+
+// -------------------------------------------------------------------------
+// Role-playing date: the inactive relationship
+// -------------------------------------------------------------------------
+
+// fact_authorization points at dim_date twice -- once for the period start and
+// once for the end. Power BI allows one active path, so period_start_key is
+// active and this measure reaches the other one on demand. Without
+// USERELATIONSHIP this silently returns authorisations filtered by their START
+// date, which is a different question with a plausible-looking answer.
+Authorizations Expiring In Period =
+CALCULATE (
+    [Authorization Count],
+    USERELATIONSHIP ( fact_authorization[period_end_key], dim_date[date_key] )
+)
+
+
+Hours Unused Expiring In Period =
+CALCULATE (
+    [Hours Unused],
+    USERELATIONSHIP ( fact_authorization[period_end_key], dim_date[date_key] )
+)
+
+
+// -------------------------------------------------------------------------
+// Trend
+// -------------------------------------------------------------------------
+
+Hours Delivered LM =
+CALCULATE ( [Hours Delivered], DATEADD ( dim_date[full_date], -1, MONTH ) )
+
+
+Hours Delivered MoM % =
+DIVIDE ( [Hours Delivered] - [Hours Delivered LM], [Hours Delivered LM] )
+
+
+// Rolling median session length is what surfaced the source-system change on
+// 2026-04-01 in the pipeline's own checks. Worth having on the page: a step
+// change here is almost never a change in clinical practice.
+Median Session Minutes =
+MEDIANX (
+    FILTER ( fact_session,
+             fact_session[is_completed] = 1 && fact_session[uom_resolved] = 1 ),
+    fact_session[minutes_delivered]
+)

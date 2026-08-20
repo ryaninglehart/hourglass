@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+data/
+!data/.gitkeep
+*.db
+*.building.db
+.DS_Store
+.hypothesis/
+.mutmut-cache
+mutants/

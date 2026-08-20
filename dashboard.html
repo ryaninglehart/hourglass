@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hourglass — authorisation utilisation</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --raised:#ffffff;
+    --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+    --blue:#2a78d6; --blue-300:#6da7ec; --blue-550:#1c5cab; --blue-100:#cde2fb;
+    --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --wash:rgba(11,11,11,.035);
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --raised:#212120;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --blue:#3987e5; --blue-300:#5598e7; --blue-550:#86b6ef; --blue-100:#184f95;
+    --wash:rgba(255,255,255,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19; --raised:#212120;
+      --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+      --blue:#3987e5; --blue-300:#5598e7; --blue-550:#86b6ef; --blue-100:#184f95;
+      --wash:rgba(255,255,255,.05);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 22px 80px}
+  header.top{display:flex;justify-content:space-between;align-items:flex-start;
+    gap:20px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:20px}
+  h1{font-size:23px;margin:0 0 4px;letter-spacing:-.015em}
+  .sub{color:var(--ink-2);font-size:13.5px;margin:0}
+  .meta{font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  h2{font-size:16px;margin:36px 0 4px;letter-spacing:-.005em}
+  .h2sub{font-size:13px;color:var(--ink-2);margin:0 0 14px}
+  .banner{margin:18px 0 0;padding:12px 16px;border-radius:10px;font-size:13.5px;
+    border:1px solid var(--border);border-left:3px solid var(--warn);background:var(--surface)}
+  .banner b{color:var(--ink)}
+  .synthetic{border-left-color:var(--blue)}
+  .hero{display:flex;gap:26px;align-items:flex-end;flex-wrap:wrap;margin:22px 0 4px}
+  .hero-fig{font-size:56px;font-weight:600;letter-spacing:-.03em;line-height:1}
+  .hero-meta{font-size:13.5px;color:var(--ink-2);padding-bottom:6px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;padding:3px 9px;border-radius:5px;border:1px solid}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0 0}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px}
+  .kpi .lab{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    font-weight:600;margin:0 0 6px}
+  .kpi .val{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .kpi .note{font-size:12.5px;color:var(--ink-2);margin:5px 0 0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+  /* The at-risk table has eight columns and cannot usefully compress to a
+     phone. Scrolling it inside its own card is the lesser evil; without this
+     it widens the document and every other block scrolls sideways with it. */
+  .card.scroll-x{overflow-x:auto}
+  .card.scroll-x table{min-width:660px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--grid)}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr:hover{background:var(--wash)}
+  .chk{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--grid)}
+  .chk:last-child{border-bottom:0}
+  .chk .sev{flex:none;width:52px;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    padding:2px 0;text-align:center;border-radius:4px;border:1px solid;margin-top:2px}
+  .chk .body{flex:1;min-width:0}
+  .chk .nm{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;font-weight:600}
+  .chk .ms{font-size:12.5px;color:var(--ink-2);margin:2px 0 0}
+  .ok{color:var(--good);border-color:var(--good)}
+  .warnc{color:var(--warn);border-color:var(--warn)}
+  .blockc{color:var(--critical);border-color:var(--critical)}
+  .mutedc{color:var(--muted);border-color:var(--border)}
+  .toggle{position:fixed;top:12px;right:12px;background:var(--surface);color:var(--ink-2);
+    border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;
+    cursor:pointer;font-family:inherit;z-index:40}
+  .tip{position:fixed;pointer-events:none;background:var(--raised);border:1px solid var(--border);
+    border-radius:8px;padding:7px 10px;font-size:12.5px;box-shadow:0 4px 16px rgba(0,0,0,.16);
+    opacity:0;transition:opacity .09s;z-index:60;max-width:250px}
+  .tip.on{opacity:1}
+  .tip b{display:block;margin-bottom:2px}
+  .foot{margin-top:36px;padding-top:18px;border-top:1px solid var(--border);
+    font-size:12.5px;color:var(--ink-2)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+    background:var(--wash);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<button class="toggle" id="themeBtn">Dark</button>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>Authorisation utilisation</h1>
+    <p class="sub">Authorised therapy hours against hours actually delivered, by payer, discipline and centre.</p>
+  </div>
+  <div class="meta" id="meta"></div>
+</header>
+
+<div class="banner synthetic">
+  <b>All data on this page is synthetic.</b> It was produced by a seeded generator in this
+  repository. No real patient information was used to build it and none is present in it.
+</div>
+
+<div id="gateBanner"></div>
+
+<div class="hero">
+  <div>
+    <div class="hero-fig" id="heroFig">—</div>
+    <div class="sub" style="margin-top:4px" id="heroSub">delivery pace against the operating floor</div>
+  </div>
+  <div class="hero-meta" id="heroMeta"></div>
+</div>
+
+<div class="kpis" id="kpis"></div>
+
+<h2>What needs attention this week</h2>
+<p class="h2sub" id="atRiskSub"></p>
+<div class="card scroll-x">
+  <table>
+    <thead><tr>
+      <th>Client</th><th>Service</th><th>Payer</th><th>Contract</th>
+      <th class="n">Expires in</th><th class="n">Authorised</th>
+      <th class="n">Delivered</th><th class="n">Hours at risk</th>
+    </tr></thead>
+    <tbody id="atRiskBody"></tbody>
+  </table>
+</div>
+
+<div class="grid2">
+  <div>
+    <h2>Pace by payer</h2>
+    <p class="h2sub">Weighted by authorised units. The line marks the 90% floor.</p>
+    <div class="card"><div id="chartPayer"></div></div>
+  </div>
+  <div>
+    <h2>Pace by discipline</h2>
+    <p class="h2sub">Same measure, cut by service line.</p>
+    <div class="card"><div id="chartDiscipline"></div></div>
+  </div>
+</div>
+
+<h2>Hours delivered by month</h2>
+<p class="h2sub" id="monthlySub">Completed sessions only. Cancellations and no-shows are excluded.</p>
+<div class="card"><div id="chartMonthly"></div></div>
+
+<h2>Measure coverage by month</h2>
+<p class="h2sub" id="coverageSub"></p>
+<div class="card"><div id="chartCoverage"></div></div>
+
+<h2>What the missing unit of measure would have cost</h2>
+<div class="card" id="spreadCard"></div>
+
+<h2>Data quality gate</h2>
+<p class="h2sub" id="qualitySub"></p>
+<div class="card" id="checks"></div>
+
+<div class="foot" id="foot"></div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script id="payload" type="application/json">{
+  "meta": {
+    "run_id": "25fed680",
+    "code_version": "0.7.0",
+    "as_of": "2026-08-14",
+    "generated_at_utc": "2026-08-20T17:32:34+00:00",
+    "lake_backend": "local",
+    "bucket": "cortica-datalake-dev",
+    "synthetic": true
+  },
+  "headline": {
+    "pace": 0.7513,
+    "closed_utilization": 0.7666,
+    "floor": 0.9,
+    "ceiling": 1.0,
+    "active_authorizations": 959,
+    "closed_authorizations": 866,
+    "units_authorized": 397477.0,
+    "units_delivered": 170263.0,
+    "expected_units_to_date": 226632.5,
+    "hours_unused": 57763.8,
+    "at_risk_count": 228,
+    "at_risk_hours": 8688.2,
+    "at_risk_children": 71
+  },
+  "by_payer": [
+    {
+      "payer_name": "Unified Employer Trust",
+      "authorizations": 353,
+      "units_authorized": 138914,
+      "units_delivered": 79840.0,
+      "units_unused": 59081.0,
+      "expected_units_to_date": 106728.6875,
+      "hours_unused": 15013.0,
+      "hours_authorized": 35287.25,
+      "utilization": 0.5747,
+      "pace": 0.7481,
+      "contract_type": "value_based"
+    },
+    {
+      "payer_name": "Cascade Benefits",
+      "authorizations": 367,
+      "units_authorized": 146210,
+      "units_delivered": 85708.0,
+      "units_unused": 60515.0,
+      "expected_units_to_date": 114127.1501,
+      "hours_unused": 15321.5,
+      "hours_authorized": 37012.75,
+      "utilization": 0.5862,
+      "pace": 0.751,
+      "contract_type": "fee_for_service"
+    },
+    {
+      "payer_name": "Statewide Medicaid MCO",
+      "authorizations": 366,
+      "units_authorized": 136905,
+      "units_delivered": 74331.0,
+      "units_unused": 62589.0,
+      "expected_units_to_date": 98079.6803,
+      "hours_unused": 15945.75,
+      "hours_authorized": 34873.75,
+      "utilization": 0.5429,
+      "pace": 0.7579,
+      "contract_type": "fee_for_service"
+    },
+    {
+      "payer_name": "Pacific Care Network",
+      "authorizations": 308,
+      "units_authorized": 123610,
+      "units_delivered": 72333.0,
+      "units_unused": 51292.0,
+      "expected_units_to_date": 94935.8114,
+      "hours_unused": 13087.25,
+      "hours_authorized": 31504.75,
+      "utilization": 0.5852,
+      "pace": 0.7619,
+      "contract_type": "value_based"
+    },
+    {
+      "payer_name": "Meridian Health Plan",
+      "authorizations": 431,
+      "units_authorized": 165095,
+      "units_delivered": 98193.0,
+      "units_unused": 66919.0,
+      "expected_units_to_date": 126018.2145,
+      "hours_unused": 16995.0,
+      "hours_authorized": 41909.0,
+      "utilization": 0.5948,
+      "pace": 0.7792,
+      "contract_type": "value_based"
+    }
+  ],
+  "by_discipline": [
+    {
+      "discipline": "Medical",
+      "authorizations": 167,
+      "units_authorized": 3108,
+      "units_delivered": 1730.0,
+      "units_unused": 1378.0,
+      "expected_units_to_date": 2336.7414,
+      "hours_unused": 689.0,
+      "hours_authorized": 1554.0,
+      "utilization": 0.5566,
+      "pace": 0.7403
+    },
+    {
+      "discipline": "Speech",
+      "authorizations": 225,
+      "units_authorized": 4254,
+      "units_delivered": 2416.0,
+      "units_unused": 1838.0,
+      "expected_units_to_date": 3209.5691,
+      "hours_unused": 1378.5,
+      "hours_authorized": 3190.5,
+      "utilization": 0.5679,
+      "pace": 0.7527
+    },
+    {
+      "discipline": "ABA",
+      "authorizations": 1271,
+      "units_authorized": 693895,
+      "units_delivered": 400667.0,
+      "units_unused": 293275.0,
+      "expected_units_to_date": 527110.6147,
+      "hours_unused": 73318.75,
+      "hours_authorized": 173473.75,
+      "utilization": 0.5774,
+      "pace": 0.7601
+    },
+    {
+      "discipline": "Occupational",
+      "authorizations": 162,
+      "units_authorized": 9477,
+      "units_delivered": 5592.0,
+      "units_unused": 3905.0,
+      "expected_units_to_date": 7232.6187,
+      "hours_unused": 976.25,
+      "hours_authorized": 2369.25,
+      "utilization": 0.5901,
+      "pace": 0.7732
+    }
+  ],
+  "by_center": [
+    {
+      "center_name": "Irvine",
+      "authorizations": 453,
+      "units_authorized": 163597,
+      "units_delivered": 92180.0,
+      "units_unused": 71419.0,
+      "expected_units_to_date": 125438.0861,
+      "hours_unused": 18213.5,
+      "hours_authorized": 41718.0,
+      "utilization": 0.5635,
+      "pace": 0.7349
+    },
+    {
+      "center_name": "Temecula",
+      "authorizations": 358,
+      "units_authorized": 136669,
+      "units_delivered": 74736.0,
+      "units_unused": 61952.0,
+      "expected_units_to_date": 100221.383,
+      "hours_unused": 15746.25,
+      "hours_authorized": 34743.5,
+      "utilization": 0.5468,
+      "pace": 0.7457
+    },
+    {
+      "center_name": "San Diego",
+      "authorizations": 391,
+      "units_authorized": 162560,
+      "units_delivered": 95372.0,
+      "units_unused": 67192.0,
+      "expected_units_to_date": 126926.7234,
+      "hours_unused": 17046.75,
+      "hours_authorized": 41215.25,
+      "utilization": 0.5867,
+      "pace": 0.7514
+    },
+    {
+      "center_name": "Phoenix",
+      "authorizations": 275,
+      "units_authorized": 109442,
+      "units_delivered": 64142.0,
+      "units_unused": 45312.0,
+      "expected_units_to_date": 82184.4003,
+      "hours_unused": 11532.75,
+      "hours_authorized": 27833.0,
+      "utilization": 0.5861,
+      "pace": 0.7805
+    },
+    {
+      "center_name": "Plano",
+      "authorizations": 348,
+      "units_authorized": 138466,
+      "units_delivered": 83975.0,
+      "units_unused": 54521.0,
+      "expected_units_to_date": 105118.951,
+      "hours_unused": 13823.25,
+      "hours_authorized": 35077.75,
+      "utilization": 0.6065,
+      "pace": 0.7989
+    }
+  ],
+  "monthly": [
+    {
+      "year_month": "2026-01",
+      "sessions": 1458,
+      "units_delivered": 13341.0,
+      "minutes_delivered": 203640.0,
+      "resolved_sessions": 1454,
+      "hours_delivered": 3394.0,
+      "uom_coverage": 0.9973,
+      "median_minutes": 165.0
+    },
+    {
+      "year_month": "2026-02",
+      "sessions": 4583,
+      "units_delivered": 42249.0,
+      "minutes_delivered": 644985.0,
+      "resolved_sessions": 4582,
+      "hours_delivered": 10749.75,
+      "uom_coverage": 0.9998,
+      "median_minutes": 165.0
+    },
+    {
+      "year_month": "2026-03",
+      "sessions": 7554,
+      "units_delivered": 69962.0,
+      "minutes_delivered": 1065765.0,
+      "resolved_sessions": 7550,
+      "hours_delivered": 17762.75,
+      "uom_coverage": 0.9995,
+      "median_minutes": 165.0
+    },
+    {
+      "year_month": "2026-04",
+      "sessions": 7563,
+      "units_delivered": 64174.0,
+      "minutes_delivered": 979200.0,
+      "resolved_sessions": 6961,
+      "hours_delivered": 16320.0,
+      "uom_coverage": 0.9204,
+      "median_minutes": 165.0
+    },
+    {
+      "year_month": "2026-05",
+      "sessions": 7218,
+      "units_delivered": 61175.0,
+      "minutes_delivered": 932970.0,
+      "resolved_sessions": 6624,
+      "hours_delivered": 15549.5,
+      "uom_coverage": 0.9177,
+      "median_minutes": 150.0
+    },
+    {
+      "year_month": "2026-06",
+      "sessions": 7556,
+      "units_delivered": 64364.0,
+      "minutes_delivered": 982185.0,
+      "resolved_sessions": 6982,
+      "hours_delivered": 16369.75,
+      "uom_coverage": 0.924,
+      "median_minutes": 150.0
+    },
+    {
+      "year_month": "2026-07",
+      "sessions": 7822,
+      "units_delivered": 66796.0,
+      "minutes_delivered": 1018410.0,
+      "resolved_sessions": 7225,
+      "hours_delivered": 16973.5,
+      "uom_coverage": 0.9237,
+      "median_minutes": 165.0
+    },
+    {
+      "year_month": "2026-08",
+      "sessions": 3407,
+      "units_delivered": 28969.0,
+      "minutes_delivered": 441675.0,
+      "resolved_sessions": 3156,
+      "hours_delivered": 7361.25,
+      "uom_coverage": 0.9263,
+      "median_minutes": 150.0
+    }
+  ],
+  "at_risk": [
+    {
+      "auth_id": "ATH-424C01B032D4",
+      "client_id": "CLI-D93E353A0540",
+      "service_code": "97151",
+      "service_name": "Behavior identification assessment",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 32,
+      "units_delivered": 22.0,
+      "units_unused": 10.0,
+      "hours_authorized": 8.0,
+      "hours_delivered": 5.5,
+      "hours_unused": 2.5,
+      "utilization": 0.688,
+      "pace": 0.688,
+      "days_to_expiry": 0,
+      "period_end": "2026-08-14"
+    },
+    {
+      "auth_id": "ATH-59AE19FEA285",
+      "client_id": "CLI-B64A1FA52825",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 1899,
+      "units_delivered": 1403.0,
+      "units_unused": 496.0,
+      "hours_authorized": 474.75,
+      "hours_delivered": 350.75,
+      "hours_unused": 124.0,
+      "utilization": 0.739,
+      "pace": 0.743,
+      "days_to_expiry": 1,
+      "period_end": "2026-08-15"
+    },
+    {
+      "auth_id": "ATH-22C06BF14747",
+      "client_id": "CLI-B64A1FA52825",
+      "service_code": "97155",
+      "service_name": "Adaptive behavior treatment w/ protocol modification",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 228,
+      "units_delivered": 166.0,
+      "units_unused": 62.0,
+      "hours_authorized": 57.0,
+      "hours_delivered": 41.5,
+      "hours_unused": 15.5,
+      "utilization": 0.728,
+      "pace": 0.732,
+      "days_to_expiry": 1,
+      "period_end": "2026-08-15"
+    },
+    {
+      "auth_id": "ATH-C3C61BB88D20",
+      "client_id": "CLI-4319BD4562FB",
+      "service_code": "97156",
+      "service_name": "Family adaptive behavior treatment guidance",
+      "discipline": "ABA",
+      "payer_name": "Unified Employer Trust",
+      "contract_type": "value_based",
+      "units_authorized": 104,
+      "units_delivered": 68.0,
+      "units_unused": 36.0,
+      "hours_authorized": 26.0,
+      "hours_delivered": 17.0,
+      "hours_unused": 9.0,
+      "utilization": 0.654,
+      "pace": 0.657,
+      "days_to_expiry": 1,
+      "period_end": "2026-08-15"
+    },
+    {
+      "auth_id": "ATH-A117FA66FB26",
+      "client_id": "CLI-C249039C5A6B",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Pacific Care Network",
+      "contract_type": "value_based",
+      "units_authorized": 1494,
+      "units_delivered": 825.0,
+      "units_unused": 669.0,
+      "hours_authorized": 373.5,
+      "hours_delivered": 206.25,
+      "hours_unused": 167.25,
+      "utilization": 0.552,
+      "pace": 0.558,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-445D74963911",
+      "client_id": "CLI-F13EBD9E12AD",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 1087,
+      "units_delivered": 506.0,
+      "units_unused": 581.0,
+      "hours_authorized": 271.75,
+      "hours_delivered": 126.5,
+      "hours_unused": 145.25,
+      "utilization": 0.466,
+      "pace": 0.476,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-C7D1105932B7",
+      "client_id": "CLI-EDAF532DE3DB",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 1018,
+      "units_delivered": 748.0,
+      "units_unused": 270.0,
+      "hours_authorized": 254.5,
+      "hours_delivered": 187.0,
+      "hours_unused": 67.5,
+      "utilization": 0.735,
+      "pace": 0.747,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-28D2222A2F85",
+      "client_id": "CLI-C249039C5A6B",
+      "service_code": "97155",
+      "service_name": "Adaptive behavior treatment w/ protocol modification",
+      "discipline": "ABA",
+      "payer_name": "Pacific Care Network",
+      "contract_type": "value_based",
+      "units_authorized": 179,
+      "units_delivered": 114.0,
+      "units_unused": 65.0,
+      "hours_authorized": 44.75,
+      "hours_delivered": 28.5,
+      "hours_unused": 16.25,
+      "utilization": 0.637,
+      "pace": 0.644,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-DB9230CF202F",
+      "client_id": "CLI-F13EBD9E12AD",
+      "service_code": "92507",
+      "service_name": "Speech/language treatment",
+      "discipline": "Speech",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 13,
+      "units_delivered": 6.0,
+      "units_unused": 7.0,
+      "hours_authorized": 9.75,
+      "hours_delivered": 4.5,
+      "hours_unused": 5.25,
+      "utilization": 0.462,
+      "pace": 0.472,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-C205B762BB3C",
+      "client_id": "CLI-C249039C5A6B",
+      "service_code": "99213",
+      "service_name": "Office visit, established patient",
+      "discipline": "Medical",
+      "payer_name": "Pacific Care Network",
+      "contract_type": "value_based",
+      "units_authorized": 26,
+      "units_delivered": 16.0,
+      "units_unused": 10.0,
+      "hours_authorized": 13.0,
+      "hours_delivered": 8.0,
+      "hours_unused": 5.0,
+      "utilization": 0.615,
+      "pace": 0.622,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-55A16A1774E7",
+      "client_id": "CLI-6B32761123B8",
+      "service_code": "97156",
+      "service_name": "Family adaptive behavior treatment guidance",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 52,
+      "units_delivered": 33.0,
+      "units_unused": 19.0,
+      "hours_authorized": 13.0,
+      "hours_delivered": 8.25,
+      "hours_unused": 4.75,
+      "utilization": 0.635,
+      "pace": 0.649,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-A27E6969952E",
+      "client_id": "CLI-FB47E6027717",
+      "service_code": "97151",
+      "service_name": "Behavior identification assessment",
+      "discipline": "ABA",
+      "payer_name": "Unified Employer Trust",
+      "contract_type": "value_based",
+      "units_authorized": 32,
+      "units_delivered": 15.0,
+      "units_unused": 17.0,
+      "hours_authorized": 8.0,
+      "hours_delivered": 3.75,
+      "hours_unused": 4.25,
+      "utilization": 0.469,
+      "pace": 0.474,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-EE68E7FAE44C",
+      "client_id": "CLI-C249039C5A6B",
+      "service_code": "97151",
+      "service_name": "Behavior identification assessment",
+      "discipline": "ABA",
+      "payer_name": "Pacific Care Network",
+      "contract_type": "value_based",
+      "units_authorized": 32,
+      "units_delivered": 16.0,
+      "units_unused": 16.0,
+      "hours_authorized": 8.0,
+      "hours_delivered": 4.0,
+      "hours_unused": 4.0,
+      "utilization": 0.5,
+      "pace": 0.506,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-A51DF814670C",
+      "client_id": "CLI-F13EBD9E12AD",
+      "service_code": "99213",
+      "service_name": "Office visit, established patient",
+      "discipline": "Medical",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 13,
+      "units_delivered": 6.0,
+      "units_unused": 7.0,
+      "hours_authorized": 6.5,
+      "hours_delivered": 3.0,
+      "hours_unused": 3.5,
+      "utilization": 0.462,
+      "pace": 0.472,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-F235A4D650DC",
+      "client_id": "CLI-6B32761123B8",
+      "service_code": "92507",
+      "service_name": "Speech/language treatment",
+      "discipline": "Speech",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 13,
+      "units_delivered": 9.0,
+      "units_unused": 4.0,
+      "hours_authorized": 9.75,
+      "hours_delivered": 6.75,
+      "hours_unused": 3.0,
+      "utilization": 0.692,
+      "pace": 0.708,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-6F7B2FBDFDA4",
+      "client_id": "CLI-6B32761123B8",
+      "service_code": "97530",
+      "service_name": "Therapeutic activities (OT)",
+      "discipline": "Occupational",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 39,
+      "units_delivered": 29.0,
+      "units_unused": 10.0,
+      "hours_authorized": 9.75,
+      "hours_delivered": 7.25,
+      "hours_unused": 2.5,
+      "utilization": 0.744,
+      "pace": 0.76,
+      "days_to_expiry": 2,
+      "period_end": "2026-08-16"
+    },
+    {
+      "auth_id": "ATH-34D994711226",
+      "client_id": "CLI-5020E3778E28",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 1060,
+      "units_delivered": 524.0,
+      "units_unused": 536.0,
+      "hours_authorized": 265.0,
+      "hours_delivered": 131.0,
+      "hours_unused": 134.0,
+      "utilization": 0.494,
+      "pace": 0.511,
+      "days_to_expiry": 4,
+      "period_end": "2026-08-18"
+    },
+    {
+      "auth_id": "ATH-C643BAC11E07",
+      "client_id": "CLI-5020E3778E28",
+      "service_code": "97155",
+      "service_name": "Adaptive behavior treatment w/ protocol modification",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 127,
+      "units_delivered": 76.0,
+      "units_unused": 51.0,
+      "hours_authorized": 31.75,
+      "hours_delivered": 19.0,
+      "hours_unused": 12.75,
+      "utilization": 0.598,
+      "pace": 0.619,
+      "days_to_expiry": 4,
+      "period_end": "2026-08-18"
+    },
+    {
+      "auth_id": "ATH-9413A5373C00",
+      "client_id": "CLI-5020E3778E28",
+      "service_code": "97156",
+      "service_name": "Family adaptive behavior treatment guidance",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 69,
+      "units_delivered": 41.0,
+      "units_unused": 28.0,
+      "hours_authorized": 17.25,
+      "hours_delivered": 10.25,
+      "hours_unused": 7.0,
+      "utilization": 0.594,
+      "pace": 0.615,
+      "days_to_expiry": 4,
+      "period_end": "2026-08-18"
+    },
+    {
+      "auth_id": "ATH-BCB7F8F28E78",
+      "client_id": "CLI-332F4DD97AD4",
+      "service_code": "97156",
+      "service_name": "Family adaptive behavior treatment guidance",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 69,
+      "units_delivered": 42.0,
+      "units_unused": 27.0,
+      "hours_authorized": 17.25,
+      "hours_delivered": 10.5,
+      "hours_unused": 6.75,
+      "utilization": 0.609,
+      "pace": 0.63,
+      "days_to_expiry": 4,
+      "period_end": "2026-08-18"
+    },
+    {
+      "auth_id": "ATH-76A0EF032AE7",
+      "client_id": "CLI-5020E3778E28",
+      "service_code": "92507",
+      "service_name": "Speech/language treatment",
+      "discipline": "Speech",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 17,
+      "units_delivered": 10.0,
+      "units_unused": 7.0,
+      "hours_authorized": 12.75,
+      "hours_delivered": 7.5,
+      "hours_unused": 5.25,
+      "utilization": 0.588,
+      "pace": 0.608,
+      "days_to_expiry": 4,
+      "period_end": "2026-08-18"
+    },
+    {
+      "auth_id": "ATH-53392AD14086",
+      "client_id": "CLI-056BB40475A2",
+      "service_code": "97155",
+      "service_name": "Adaptive behavior treatment w/ protocol modification",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 179,
+      "units_delivered": 129.0,
+      "units_unused": 50.0,
+      "hours_authorized": 44.75,
+      "hours_delivered": 32.25,
+      "hours_unused": 12.5,
+      "utilization": 0.721,
+      "pace": 0.741,
+      "days_to_expiry": 5,
+      "period_end": "2026-08-19"
+    },
+    {
+      "auth_id": "ATH-0A3BA116C647",
+      "client_id": "CLI-056BB40475A2",
+      "service_code": "99213",
+      "service_name": "Office visit, established patient",
+      "discipline": "Medical",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 26,
+      "units_delivered": 18.0,
+      "units_unused": 8.0,
+      "hours_authorized": 13.0,
+      "hours_delivered": 9.0,
+      "hours_unused": 4.0,
+      "utilization": 0.692,
+      "pace": 0.712,
+      "days_to_expiry": 5,
+      "period_end": "2026-08-19"
+    },
+    {
+      "auth_id": "ATH-037F6ECD4C53",
+      "client_id": "CLI-5961B7B13581",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Statewide Medicaid MCO",
+      "contract_type": "fee_for_service",
+      "units_authorized": 2114,
+      "units_delivered": 1127.0,
+      "units_unused": 987.0,
+      "hours_authorized": 528.5,
+      "hours_delivered": 281.75,
+      "hours_unused": 246.75,
+      "utilization": 0.533,
+      "pace": 0.551,
+      "days_to_expiry": 6,
+      "period_end": "2026-08-20"
+    },
+    {
+      "auth_id": "ATH-D900290228E4",
+      "client_id": "CLI-44D42378BA18",
+      "service_code": "97153",
+      "service_name": "Adaptive behavior treatment by protocol",
+      "discipline": "ABA",
+      "payer_name": "Meridian Health Plan",
+      "contract_type": "value_based",
+      "units_authorized": 2012,
+      "units_delivered": 1116.0,
+      "units_unused": 896.0,
+      "hours_authorized": 503.0,
+      "hours_delivered": 279.0,
+      "hours_unused": 224.0,
+      "utilization": 0.555,
+      "pace": 0.574,
+      "days_to_expiry": 6,
+      "period_end": "2026-08-20"
+    }
+  ],
+  "quality": {
+    "published": true,
+    "ruleset_version": "1.9.0",
+    "ruleset_hash": "ae0bc03167c6e636",
+    "evaluated_at_utc": "2026-08-20T17:32:34+00:00",
+    "blocking_failures": [
+      "uom_resolution_coverage"
+    ],
+    "acknowledged": {
+      "uom_resolution_coverage": "Ticket DE-412. Vendor confirmed the 2026-04-01 unit-of-measure change and is back-filling the flag. Publishing with coverage stamped on the report."
+    },
+    "refused_acknowledgements": [],
+    "summary": {
+      "total": 17,
+      "passed": 10,
+      "failed": 7,
+      "block": 1,
+      "warn": 6
+    },
+    "results": [
+      {
+        "name": "uom_resolution_coverage",
+        "severity": "BLOCK",
+        "passed": false,
+        "message": "2,933 of 52,160 sessions have a duration whose unit of measure cannot be determined. Their duration is not recoverable, so they are excluded from all measures. Utilisation computed over the remaining 94.4% is correct but incomplete.",
+        "observed": 0.9438,
+        "threshold": 0.99,
+        "affected_rows": 2933,
+        "sample": [
+          {
+            "session_id": "SES-68598C8EEC2F",
+            "service_code": 97153,
+            "service_date": "2026-04-01",
+            "duration_value": 10,
+            "duration_uom": null
+          },
+          {
+            "session_id": "SES-9167A0FEED95",
+            "service_code": 97156,
+            "service_date": "2026-04-01",
+            "duration_value": 5,
+            "duration_uom": null
+          },
+          {
+            "session_id": "SES-EBA3180FB073",
+            "service_code": 97153,
+            "service_date": "2026-04-01",
+            "duration_value": 15,
+            "duration_uom": null
+          },
+          {
+            "session_id": "SES-5D338EEECFD5",
+            "service_code": 97156,
+            "service_date": "2026-04-01",
+            "duration_value": 5,
+            "duration_uom": null
+          },
+          {
+            "session_id": "SES-CDAA19F9686D",
+            "service_code": 97153,
+            "service_date": "2026-04-01",
+            "duration_value": 15,
+            "duration_uom": null
+          }
+        ],
+        "acknowledgeable": true,
+        "dimension": "conformance-value",
+        "context": "verification"
+      },
+      {
+        "name": "session_reconciliation",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "All 52,160 deduplicated sessions reached the fact table.",
+        "observed": 52160,
+        "threshold": 52160,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "completeness",
+        "context": "verification"
+      },
+      {
+        "name": "orphan_foreign_keys",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "Every session row resolves to a dimension member.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-relational",
+        "context": "verification"
+      },
+      {
+        "name": "duration_plausibility",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "All completed session durations fall within 5-480 minutes.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "plausibility-atemporal",
+        "context": "validation"
+      },
+      {
+        "name": "scd_type2_integrity",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "240 clients across 265 versions: no overlapping ranges, exactly one current row each.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-relational",
+        "context": "verification"
+      },
+      {
+        "name": "duplicate_session_submissions",
+        "severity": "WARN",
+        "passed": false,
+        "message": "222 duplicate session submissions removed (0.42% of raw rows). Same client, provider, service, date and duration. Left in, they inflate delivered units.",
+        "observed": 222,
+        "threshold": 0,
+        "affected_rows": 222,
+        "sample": [
+          {
+            "session_id": "SES-D57A6B5A54DA",
+            "client_id": "CLI-44CBF69F0FC9",
+            "service_date": "2026-01-14"
+          },
+          {
+            "session_id": "SES-1BD67D829E14",
+            "client_id": "CLI-202622716226",
+            "service_date": "2026-01-15"
+          },
+          {
+            "session_id": "SES-D7070CA8C510",
+            "client_id": "CLI-F820E3E8AEA9",
+            "service_date": "2026-01-20"
+          },
+          {
+            "session_id": "SES-E5C785835251",
+            "client_id": "CLI-6B630E29183A",
+            "service_date": "2026-01-21"
+          },
+          {
+            "session_id": "SES-DD04FDC7C23A",
+            "client_id": "CLI-B66AA9FFAEF6",
+            "service_date": "2026-01-22"
+          }
+        ],
+        "acknowledgeable": true,
+        "dimension": "plausibility-uniqueness",
+        "context": "verification"
+      },
+      {
+        "name": "unmapped_service_codes",
+        "severity": "WARN",
+        "passed": false,
+        "message": "20 sessions carry a service code absent from the catalogue. They are assigned to the explicit '(unmapped)' dimension member rather than dropped, so they stay countable.",
+        "observed": 20,
+        "threshold": 0,
+        "affected_rows": 20,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-value",
+        "context": "verification"
+      },
+      {
+        "name": "sessions_without_authorization",
+        "severity": "WARN",
+        "passed": false,
+        "message": "124 completed sessions (625 units) have no matching authorisation for that client, service and date. The measure is correct; the exposure is that this care may be unbillable.",
+        "observed": 124,
+        "threshold": 0,
+        "affected_rows": 124,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-relational",
+        "context": "validation"
+      },
+      {
+        "name": "overlapping_authorization_periods",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "No overlapping authorisation periods across 1,825 authorisations: every session attributes to exactly one authorisation.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-relational",
+        "context": "verification"
+      },
+      {
+        "name": "utilization_over_ceiling",
+        "severity": "WARN",
+        "passed": false,
+        "message": "24 authorisations show more units delivered than authorised. This is a compliance and unbilled-revenue exposure, not a win.",
+        "observed": 24,
+        "threshold": 0,
+        "affected_rows": 24,
+        "sample": [
+          {
+            "auth_id": "ATH-A64E66BB42DC",
+            "units_authorized": 52,
+            "units_delivered": 57.0,
+            "utilization": 1.096
+          },
+          {
+            "auth_id": "ATH-FE085028ECBA",
+            "units_authorized": 16,
+            "units_delivered": 19.0,
+            "utilization": 1.188
+          },
+          {
+            "auth_id": "ATH-BECFED734D0D",
+            "units_authorized": 52,
+            "units_delivered": 59.0,
+            "utilization": 1.135
+          },
+          {
+            "auth_id": "ATH-885077B58DAC",
+            "units_authorized": 16,
+            "units_delivered": 18.0,
+            "utilization": 1.125
+          },
+          {
+            "auth_id": "ATH-E9FA75BEF667",
+            "units_authorized": 52,
+            "units_delivered": 53.0,
+            "utilization": 1.019
+          }
+        ],
+        "acknowledgeable": true,
+        "dimension": "plausibility-atemporal",
+        "context": "validation"
+      },
+      {
+        "name": "zero_unit_authorizations",
+        "severity": "WARN",
+        "passed": true,
+        "message": "No authorisation approves zero units while carrying delivered sessions.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "plausibility-atemporal",
+        "context": "verification"
+      },
+      {
+        "name": "session_length_distribution_shift",
+        "severity": "WARN",
+        "passed": true,
+        "message": "Median session length is stable month to month (largest move 10.0%).",
+        "observed": 0.1,
+        "threshold": 0.4,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "plausibility-temporal",
+        "context": "verification"
+      },
+      {
+        "name": "uom_coverage_step_change",
+        "severity": "WARN",
+        "passed": false,
+        "message": "Unit-of-measure coverage fell 7.9% between 2026-03 (99.9%) and 2026-04 (92.0%) and did not recover in any later month. A step that persists is a source change, not noise: the defect starts in 2026-04 and every month before it clears the 99% floor.",
+        "observed": 0.0791,
+        "threshold": 0.02,
+        "affected_rows": 0,
+        "sample": [
+          {
+            "year_month": "2026-01",
+            "uom_coverage": 0.9973
+          },
+          {
+            "year_month": "2026-02",
+            "uom_coverage": 0.9998
+          },
+          {
+            "year_month": "2026-03",
+            "uom_coverage": 0.9995
+          },
+          {
+            "year_month": "2026-04",
+            "uom_coverage": 0.9204
+          },
+          {
+            "year_month": "2026-05",
+            "uom_coverage": 0.9177
+          },
+          {
+            "year_month": "2026-06",
+            "uom_coverage": 0.924
+          },
+          {
+            "year_month": "2026-07",
+            "uom_coverage": 0.9237
+          },
+          {
+            "year_month": "2026-08",
+            "uom_coverage": 0.9263
+          }
+        ],
+        "acknowledgeable": true,
+        "dimension": "plausibility-temporal",
+        "context": "verification"
+      },
+      {
+        "name": "phi_egress",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "No direct identifiers and no undeclared columns in anything being published.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": false,
+        "dimension": "conformance-value",
+        "context": "verification"
+      },
+      {
+        "name": "phi_content_scan",
+        "severity": "BLOCK",
+        "passed": true,
+        "message": "No identifier-shaped values found in anything being published.",
+        "observed": 0,
+        "threshold": 0,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "conformance-value",
+        "context": "verification"
+      },
+      {
+        "name": "pseudonym_salt_configured",
+        "severity": "WARN",
+        "passed": false,
+        "message": "HOURGLASS_PSEUDONYM_SALT is unset, so this run minted a random salt and discarded it at exit. Nothing published here can be precomputed, and nothing published here can be joined to another build's exports -- surrogates for the same client differ between runs. For week-to-week comparability, configure a salt and keep it: export HOURGLASS_PSEUDONYM_SALT=$(openssl rand -hex 32)",
+        "observed": null,
+        "threshold": null,
+        "affected_rows": 0,
+        "sample": [
+          {
+            "salt_source": "ephemeral"
+          }
+        ],
+        "acknowledgeable": false,
+        "dimension": "conformance-computational",
+        "context": "verification"
+      },
+      {
+        "name": "row_counts",
+        "severity": "INFO",
+        "passed": true,
+        "message": "sessions 52,160 | authorisations 1,825 | clients 240 | client versions 265",
+        "observed": 52160,
+        "threshold": null,
+        "affected_rows": 0,
+        "sample": [],
+        "acknowledgeable": true,
+        "dimension": "completeness",
+        "context": "verification"
+      }
+    ]
+  },
+  "comparison": {
+    "resolved_hours": 104480.5,
+    "if_assumed_minutes_hours": 104891.4,
+    "if_assumed_units_hours": 110740.5,
+    "spread_hours": 5849.1,
+    "spread_relative": 0.056,
+    "affected_sessions": 2607,
+    "affected_clients": 240
+  }
+}</script>
+<script>
+(function(){
+  const D = JSON.parse(document.getElementById('payload').textContent);
+  const $ = id => document.getElementById(id);
+  const pct = (v, d=1) => (v*100).toFixed(d) + '%';
+  const num = (v, d=0) => Number(v).toLocaleString(undefined,
+      {minimumFractionDigits:d, maximumFractionDigits:d});
+
+  /* ---------- theme ---------- */
+  const btn = $('themeBtn');
+  const cur = () => document.documentElement.getAttribute('data-theme')
+      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const sync = () => { btn.textContent = cur()==='dark' ? 'Light' : 'Dark'; };
+  btn.onclick = () => { document.documentElement.setAttribute('data-theme',
+      cur()==='dark'?'light':'dark'); sync(); drawAll(); };
+  sync();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  /* ---------- tooltip ---------- */
+  const tip = $('tip');
+  function showTip(e, html){
+    tip.innerHTML = html; tip.classList.add('on');
+    let x = e.clientX + 13, y = e.clientY + 13;
+    if (x + 260 > innerWidth) x = e.clientX - 262;
+    if (y + 90 > innerHeight) y = e.clientY - 92;
+    tip.style.left = x+'px'; tip.style.top = y+'px';
+  }
+  const hideTip = () => tip.classList.remove('on');
+
+  /* ---------- header ---------- */
+  const m = D.meta;
+  $('meta').innerHTML =
+      `as of <b>${m.as_of}</b><br>run <code>${m.run_id}</code> · hourglass ${m.code_version}` +
+      `<br>lake backend: ${m.lake_backend}`;
+
+  const h = D.headline;
+  const status = h.pace >= 1.0 ? ['Over-delivered','warnc']
+               : h.pace >= 0.90 ? ['On track','ok']
+               : h.pace >= 0.75 ? ['Behind','warnc'] : ['At risk','blockc'];
+  $('heroFig').textContent = pct(h.pace);
+  $('heroSub').textContent = `delivery pace against the ${pct(h.floor,0)} operating floor`;
+  $('heroFig').style.color = h.pace >= 0.90 ? css('--good')
+                            : h.pace >= 0.75 ? css('--warn') : css('--critical');
+  $('heroMeta').innerHTML =
+      `<span class="pill ${status[1]}">${status[0]}</span><br><br>` +
+      `<b>${num(h.units_delivered)}</b> units delivered against ` +
+      `<b>${num(h.expected_units_to_date)}</b> expected by today<br>` +
+      `across ${num(h.active_authorizations)} open authorisations ` +
+      `(${num(h.closed_authorizations)} closed at ${pct(h.closed_utilization)})`;
+
+  /* ---------- KPIs ---------- */
+  const q = D.quality, uomCheck = q.results.find(r => r.name === 'uom_resolution_coverage');
+  const coverage = uomCheck ? uomCheck.observed : 1;
+  const uomExcluded = uomCheck ? uomCheck.affected_rows : 0;
+  const kpis = [
+    ['Hours at risk', num(h.at_risk_hours), `${h.at_risk_count} authorisations expiring within 30 days`],
+    ['Children affected', num(h.at_risk_children), 'have approved hours about to expire unused'],
+    ['Unused hours, all open auths', num(h.hours_unused), 'authorised but not yet delivered'],
+    ['Measure coverage', pct(coverage,1), `${num(uomExcluded)} sessions excluded — unit of measure unknown`],
+  ];
+  $('kpis').innerHTML = kpis.map(k =>
+    `<div class="kpi"><p class="lab">${k[0]}</p><div class="val">${k[1]}</div>
+     <p class="note">${k[2]}</p></div>`).join('');
+
+  /* ---------- gate banner ---------- */
+  const acks = Object.entries(q.acknowledged || {});
+  if (acks.length){
+    $('gateBanner').innerHTML =
+      `<div class="banner"><b>Published with an acknowledged blocking failure.</b><br>` +
+      acks.map(([k,v]) => `<code>${k}</code> — ${v}`).join('<br>') +
+      `<br><span style="color:var(--muted)">Rule set v${q.ruleset_version} ` +
+      `(<code>${q.ruleset_hash}</code>). Recorded in the run log.</span></div>`;
+  }
+
+  /* ---------- at-risk table ---------- */
+  $('atRiskSub').textContent =
+    `${h.at_risk_count} authorisations covering ${h.at_risk_children} children expire within 30 days ` +
+    `with at least a quarter of their hours undelivered. ` +
+    `The ${Math.min(15, D.at_risk.length)} expiring soonest are shown, most urgent first.`;
+  $('atRiskBody').innerHTML = D.at_risk.slice(0,15).map(r => `
+    <tr>
+      <td><code>${r.client_id}</code></td>
+      <td>${r.service_code} · ${r.discipline}</td>
+      <td>${r.payer_name}</td>
+      <td>${r.contract_type === 'value_based'
+            ? '<span class="pill ok" style="font-size:10px">value-based</span>'
+            : '<span class="pill mutedc" style="font-size:10px">fee-for-service</span>'}</td>
+      <td class="n">${r.days_to_expiry === 0 ? 'today' : r.days_to_expiry + (r.days_to_expiry === 1 ? ' day' : ' days')}</td>
+      <td class="n">${num(r.hours_authorized,1)} h</td>
+      <td class="n">${num(r.hours_delivered,1)} h</td>
+      <td class="n"><b>${num(r.hours_unused,1)} h</b></td>
+    </tr>`).join('');
+
+  /* ---------- charts ---------- */
+  function barChart(hostId, rows, labelKey, valueKey, opts){
+    opts = opts || {};
+    const host = $(hostId);
+    const W = Math.max(300, host.clientWidth || 520);
+    const clip = t => String(t).length > 22 ? String(t).slice(0,21) + '\u2026' : String(t);
+    const longest = Math.max(...rows.map(r => clip(r[labelKey]).length));
+    const rowH = 30, m = {t:16, r:56, b:26, l:Math.min(opts.labelWidth || 190, longest*6.6 + 14)};
+    const H = m.t + m.b + rows.length*rowH;
+    const pw = W - m.l - m.r;
+    // The floor participates in the scale. Left out, a floor above every bar
+    // lands outside the plot area and its label renders on top of the axis.
+    // Round the top of the scale up to a fifth, so the four quarter-ticks land
+    // on whole percents (0/25/50/75/100) instead of 24/49/73/97.
+    const raw = Math.max(opts.max || 0, opts.floor || 0, ...rows.map(r => r[valueKey])) * 1.02 || 1;
+    const max = Math.ceil(raw*5)/5;
+    const X = v => (v/max)*pw;
+    const s = [`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${opts.aria||''}">`];
+
+    // A narrow plot cannot carry five tick labels without them running together.
+    (pw < 240 ? [0,0.5,1] : [0,0.25,0.5,0.75,1]).forEach(f => {
+      const gx = m.l + pw*f;
+      s.push(`<line x1="${gx}" y1="${m.t}" x2="${gx}" y2="${m.t+rows.length*rowH-8}" stroke="${css('--grid')}" stroke-width="1"/>`);
+      s.push(`<text x="${gx}" y="${m.t+rows.length*rowH+12}" fill="${css('--muted')}" font-size="10.5" text-anchor="middle" font-family="system-ui">${pct(max*f,0)}</text>`);
+    });
+
+    rows.forEach((r,i) => {
+      const y = m.t + i*rowH, bh = 15, by = y + (rowH-bh)/2 - 4;
+      const v = r[valueKey], w = Math.max(2, X(v));
+      const below = v < (opts.floor ?? 0.9);
+      const fill = below ? css('--blue-300') : css('--blue');
+      s.push(`<text x="${m.l-10}" y="${by+bh-3}" fill="${css('--ink')}" font-size="12" text-anchor="end" font-family="system-ui">${clip(r[labelKey])}</text>`);
+      s.push(`<rect class="bar" data-i="${i}" x="${m.l}" y="${by}" width="${w}" height="${bh}" rx="4" fill="${fill}" style="cursor:pointer"/>`);
+      // Parked in the right-hand gutter rather than chased along the bar end.
+      // Trailing the bar puts the label wherever the value happens to land,
+      // which is on top of the floor line for any value near the floor.
+      s.push(`<text x="${W-m.r+8}" y="${by+bh-3}" fill="${css('--muted')}" font-size="11.5" font-family="system-ui" font-variant-numeric="tabular-nums">${pct(v)}</text>`);
+    });
+
+    if (opts.floor){
+      const fx = m.l + X(opts.floor);
+      s.push(`<line x1="${fx}" y1="${m.t-2}" x2="${fx}" y2="${m.t+rows.length*rowH-6}" stroke="${css('--critical')}" stroke-width="2" stroke-dasharray="4 3"/>`);
+      s.push(`<text x="${fx}" y="${m.t-5}" fill="${css('--critical')}" font-size="10" text-anchor="middle" font-family="system-ui">floor ${pct(opts.floor,0)}</text>`);
+    }
+    s.push('</svg>');
+    host.innerHTML = s.join('');
+    host.querySelectorAll('.bar').forEach(el => {
+      const r = rows[+el.dataset.i];
+      el.addEventListener('mousemove', e => showTip(e,
+        `<b>${r[labelKey]}</b>pace ${pct(r[valueKey])}<br>` +
+        `${num(r.units_delivered)} of ${num(r.units_authorized)} units<br>` +
+        `${num(r.hours_unused)} hours unused · ${num(r.authorizations)} auths`));
+      el.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  function lineChart(hostId, rows, xKey, yKey, opts){
+    opts = opts || {};
+    const host = $(hostId);
+    const W = Math.max(320, host.clientWidth || 900);
+    const m = {t:16, r:20, b:34, l:56}, H = opts.height || 240;
+    const pw = W-m.l-m.r, ph = H-m.t-m.b;
+    const vals = rows.map(r => r[yKey]);
+    // An auto-scaled top of 18,829 gives gridlines at 4,707 and 9,414. Round it
+    // up to a 1/2/5 x 10^n step so the four ticks are numbers a reader can hold.
+    const niceCeil = v => {
+      if (!(v > 0)) return 1;
+      const p = Math.pow(10, Math.floor(Math.log10(v)));
+      return [1,2,2.5,5,10].map(k => k*p).find(c => c >= v - 1e-9) || 10*p;
+    };
+    const lo = opts.min !== undefined ? opts.min : Math.min(...vals)*0.92;
+    const hi = opts.max !== undefined ? opts.max : niceCeil(Math.max(...vals)*1.06);
+    const X = i => m.l + (rows.length===1 ? pw/2 : (i/(rows.length-1))*pw);
+    const Y = v => m.t + ph - ((v-lo)/(hi-lo))*ph;
+    const s = [`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${opts.aria||''}">`];
+
+    for (let k=0;k<=4;k++){
+      const v = lo + (hi-lo)*k/4, gy = Y(v);
+      s.push(`<line x1="${m.l}" y1="${gy}" x2="${W-m.r}" y2="${gy}" stroke="${css('--grid')}" stroke-width="1"/>`);
+      s.push(`<text x="${m.l-9}" y="${gy+4}" fill="${css('--muted')}" font-size="10.5" text-anchor="end" font-family="system-ui">${opts.fmt ? opts.fmt(v) : num(v)}</text>`);
+    }
+    rows.forEach((r,i) => s.push(`<text x="${X(i)}" y="${m.t+ph+18}" fill="${css('--muted')}" font-size="10.5" text-anchor="middle" font-family="system-ui">${String(r[xKey]).slice(2)}</text>`));
+
+    if (opts.reference !== undefined){
+      const ry = Y(opts.reference);
+      s.push(`<line x1="${m.l}" y1="${ry}" x2="${W-m.r}" y2="${ry}" stroke="${css('--critical')}" stroke-width="1.5" stroke-dasharray="4 3"/>`);
+      s.push(`<text x="${W-m.r}" y="${ry-5}" fill="${css('--critical')}" font-size="10.5" text-anchor="end" font-family="system-ui">${opts.referenceLabel||''}</text>`);
+    }
+    if (opts.markIndex !== undefined && opts.markIndex >= 0){
+      const mx = X(opts.markIndex);
+      s.push(`<line x1="${mx}" y1="${m.t}" x2="${mx}" y2="${m.t+ph}" stroke="${css('--warn')}" stroke-width="2"/>`);
+      s.push(`<text x="${mx+6}" y="${m.t+ph-8}" fill="${css('--warn')}" font-size="10.5" font-family="system-ui">${opts.markLabel||''}</text>`);
+    }
+
+    s.push(`<path d="${rows.map((r,i)=>`${i?'L':'M'}${X(i)},${Y(r[yKey])}`).join(' ')}" fill="none" stroke="${css('--blue')}" stroke-width="2" stroke-linejoin="round"/>`);
+    rows.forEach((r,i) => s.push(`<circle class="pt" data-i="${i}" cx="${X(i)}" cy="${Y(r[yKey])}" r="4.5" fill="${css('--blue')}" stroke="${css('--surface')}" stroke-width="2" style="cursor:pointer"/>`));
+    s.push('</svg>');
+    host.innerHTML = s.join('');
+    host.querySelectorAll('.pt').forEach(el => {
+      const r = rows[+el.dataset.i];
+      el.addEventListener('mousemove', e => showTip(e, opts.tip ? opts.tip(r) : `<b>${r[xKey]}</b>${num(r[yKey])}`));
+      el.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  const covRows = D.monthly.map(r => ({...r}));
+  const dropIdx = (() => {
+    let worst = -1, worstDrop = 0;
+    for (let i=1;i<covRows.length;i++){
+      const d = covRows[i-1].uom_coverage - covRows[i].uom_coverage;
+      if (d > worstDrop){ worstDrop = d; worst = i; }
+    }
+    return worst;
+  })();
+
+  function drawAll(){
+    barChart('chartPayer', D.by_payer, 'payer_name', 'pace',
+      {floor: h.floor, labelWidth: 168, aria:'Delivery pace by payer'});
+    barChart('chartDiscipline', D.by_discipline, 'discipline', 'pace',
+      {floor: h.floor, labelWidth: 116, aria:'Delivery pace by discipline'});
+    lineChart('chartMonthly', D.monthly, 'year_month', 'hours_delivered',
+      {min:0, height:230, aria:'Hours delivered by month',
+       tip: r => `<b>${r.year_month}</b>${num(r.hours_delivered)} hours<br>${num(r.sessions)} completed sessions`});
+    lineChart('chartCoverage', covRows, 'year_month', 'uom_coverage',
+      {min:0.85, max:1.0, height:230, fmt: v => pct(v,1),
+       reference: 0.99, referenceLabel: 'coverage floor 99%',
+       markIndex: dropIdx, markLabel: 'source change',
+       aria:'Unit-of-measure coverage by month',
+       tip: r => `<b>${r.year_month}</b>${pct(r.uom_coverage,1)} of sessions usable<br>${num(r.sessions)} sessions`});
+  }
+
+  // The last month on the chart stops at the as-of date. Unlabelled, its drop
+  // reads as a collapse in delivery rather than a month that is not over.
+  (function(){
+    const last = D.monthly[D.monthly.length-1];
+    if (last && String(m.as_of).slice(0,7) === last.year_month){
+      $('monthlySub').innerHTML +=
+        ` <b>${last.year_month} is a partial month</b> — data runs to ${m.as_of}, ` +
+        `so the final point is not comparable with the ones before it.`;
+    }
+  })();
+
+  $('coverageSub').innerHTML =
+    'Share of sessions whose duration could be interpreted. The step in ' +
+    `<b>${dropIdx>=0 ? covRows[dropIdx].year_month : 'n/a'}</b> is the source-system change, ` +
+    'not a change in clinical practice — see <code>docs/ANOMALY.md</code>.';
+
+  /* ---------- spread ---------- */
+  const c = D.comparison;
+  $('spreadCard').innerHTML = `
+    <p style="margin:0 0 12px;font-size:13.5px;color:var(--ink-2)">
+      ${num(c.affected_sessions)} completed sessions arrived with a duration but no unit of
+      measure &mdash; the part of the ${num(uomExcluded)} excluded sessions where a guess was
+      even possible. Both available assumptions are defensible and they differ by roughly a
+      factor of fifteen. Neither raises an error.</p>
+    <table>
+      <thead><tr><th>Approach</th><th class="n">Hours delivered</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td>Assume the value is <b>minutes</b></td><td class="n">${num(c.if_assumed_minutes_hours)}</td>
+            <td>Understates delivery. Looks plausible.</td></tr>
+        <tr><td>Assume the value is <b>units</b></td><td class="n">${num(c.if_assumed_units_hours)}</td>
+            <td>Overstates delivery. Also looks plausible.</td></tr>
+        <tr style="background:var(--wash)"><td><b>Exclude and publish the coverage</b></td>
+            <td class="n"><b>${num(c.resolved_hours)}</b></td>
+            <td>Correct over ${pct(coverage,1)} of sessions, and says so.</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:12px 0 0;font-size:13.5px;color:var(--ink-2)">
+      The gap between the two guesses is <b>${num(c.spread_hours)} hours</b>
+      (${pct(c.spread_relative,1)} of delivered volume). That is the cost of picking one
+      and not writing it down.</p>`;
+
+  /* ---------- checks ---------- */
+  const sevClass = {BLOCK:'blockc', WARN:'warnc', INFO:'mutedc'};
+  const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
+  $('qualitySub').innerHTML =
+    `${q.summary.total} checks · ${q.summary.passed} passed · ` +
+    `${plural(q.summary.block, 'blocking failure', 'blocking failures')} · ` +
+    `${plural(q.summary.warn, 'warning', 'warnings')} · ` +
+    `rule set v${q.ruleset_version} <code>${q.ruleset_hash}</code>`;
+  $('checks').innerHTML = q.results.map(r => `
+    <div class="chk">
+      <div class="sev ${r.passed ? 'ok' : sevClass[r.severity]}">${r.passed ? 'PASS' : r.severity}</div>
+      <div class="body"><div class="nm">${r.name}</div><p class="ms">${r.message}</p></div>
+    </div>`).join('');
+
+  // Naming the S3 bucket on a run that never touched S3 reads as a claim the
+  // run cannot support. Show the path the data actually took.
+  const lakeText = m.lake_backend === 's3'
+    ? `lake <code>s3://${m.bucket}</code>`
+    : `lake: local filesystem (S3 target <code>s3://${m.bucket}</code> not used on this run)`;
+  $('foot').innerHTML =
+    `Generated ${m.generated_at_utc} · ${lakeText}` +
+    ` · every figure recomputed from the warehouse on each run. ` +
+    `The Power BI semantic model in <code>bi/measures.dax</code> reproduces these ` +
+    `same measures from the same exports.`;
+
+  drawAll();
+  addEventListener('resize', drawAll);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { sync(); drawAll(); });
+})();
+</script>
+</body>
+</html>

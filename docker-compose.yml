@@ -1,0 +1,27 @@
+# LocalStack: the AWS S3 API, on localhost, for free.
+#
+# The pipeline talks to it through boto3 with no code changes -- config.S3
+# reads AWS_ENDPOINT_URL and passes it to the client. Unset that variable and
+# the identical code path goes to real AWS.
+#
+#   make localstack-up      start it
+#   make run-s3             run the pipeline against it
+#   make localstack-down    stop it
+services:
+  localstack:
+    image: localstack/localstack:3
+    container_name: hourglass-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - AWS_DEFAULT_REGION=us-west-2
+      # Ephemeral by design: a lake you cannot rebuild from scratch is a lake
+      # nobody can reason about.
+      - PERSISTENCE=0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 4s
+      retries: 12

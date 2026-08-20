@@ -1,0 +1,53 @@
+[project]
+name = "hourglass"
+version = "0.7.0"
+description = "Authorisation utilisation pipeline for paediatric therapy (synthetic data)"
+requires-python = ">=3.11"
+dependencies = ["pandas>=2.1", "boto3>=1.34"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "hypothesis>=6.100", "moto[s3]>=5.0", "ruff>=0.6"]
+
+[project.scripts]
+hourglass = "hourglass.pipeline:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 92
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+# Deliberately not the full rule set. These are the ones that catch mistakes;
+# the rest mostly catch opinions, and a linter arguing about opinions is a
+# linter people learn to ignore.
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes -- unused imports, undefined names
+    "I",        # import ordering
+    "B",        # bugbear -- mutable defaults, loop-variable capture
+    "C4",       # comprehension simplifications
+    "UP",       # outdated syntax
+    "SIM",      # obvious simplifications
+    "RUF",      # ruff's own checks
+]
+ignore = [
+    "E501",     # line length is handled by the formatter, not by shouting
+    "B905",     # zip(strict=) -- not always the right default
+    # `×` and `—` are correct in prose and in rendered report tables. Replacing
+    # them with ASCII to satisfy a homoglyph rule aimed at supply-chain attacks
+    # would make the output worse to read for no security gain.
+    "RUF001", "RUF002", "RUF003",
+    # str+Enum is deliberate: these values are compared to strings and
+    # serialised to JSON. StrEnum would work on 3.11+ but the mixin is
+    # explicit about why the value matters.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may shadow names and use assert freely; that is what they are for.
+"tests/*" = ["B011", "E731"]
