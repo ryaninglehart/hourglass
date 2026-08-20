@@ -23,6 +23,9 @@ This pipeline reads them together, and then tells a person what to do about it.
 ## Run it
 
 ```bash
+git clone https://github.com/ryaninglehart/hourglass.git
+cd hourglass
+
 # Python 3.11+
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
