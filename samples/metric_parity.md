@@ -55,3 +55,5 @@ Re-derived from the warehouse and compared against what was actually written to 
 | units_delivered — open authorisations only | 170,263.0000 | 170,263.0000 | 0.0000 | ✓ |
 | active_authorizations — open on the as-of date | 959.0000 | 959.0000 | 0.0000 | ✓ |
 | closed_authorizations — period ended before the as-of date | 866.0000 | 866.0000 | 0.0000 | ✓ |
+| expected_units_to_date — open authorisations only | 226,632.5439 | 226,632.5000 | 0.0439 | ✓ |
+| pace — units delivered over units expected to date, open authorisations only | 0.7513 | 0.7513 | -0.0000 | ✓ |

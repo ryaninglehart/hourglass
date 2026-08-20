@@ -1,8 +1,8 @@
 # Data quality report
 
 - **Verdict:** PUBLISHED
-- **Evaluated:** 2026-08-20T18:19:50+00:00
-- **Rule set:** v1.9.0 (`ae0bc03167c6e636`)
+- **Evaluated:** 2026-08-20T21:38:16+00:00
+- **Rule set:** v1.10.0 (`7873731d9d66f3d2`)
 - **Checks:** 17 run, 7 failed
 
 | Check | Dimension | Context | Severity | Result | Observed | Threshold | Rows |
@@ -34,35 +34,35 @@
 ```json
 [
   {
-    "session_id": "SES-1E2C96158337",
+    "session_id": "SES-1C918D94E3A0",
     "service_code": 97153,
     "service_date": "2026-04-01",
     "duration_value": 10,
     "duration_uom": null
   },
   {
-    "session_id": "SES-03B931C23F10",
+    "session_id": "SES-7C4288AEF993",
     "service_code": 97156,
     "service_date": "2026-04-01",
     "duration_value": 5,
     "duration_uom": null
   },
   {
-    "session_id": "SES-3E60E70F517F",
+    "session_id": "SES-C44D55F21E1D",
     "service_code": 97153,
     "service_date": "2026-04-01",
     "duration_value": 15,
     "duration_uom": null
   },
   {
-    "session_id": "SES-4079DB0461C1",
+    "session_id": "SES-05A5158F78B9",
     "service_code": 97156,
     "service_date": "2026-04-01",
     "duration_value": 5,
     "duration_uom": null
   },
   {
-    "session_id": "SES-3057FF563B0A",
+    "session_id": "SES-FC774DD3EA6A",
     "service_code": 97153,
     "service_date": "2026-04-01",
     "duration_value": 15,
@@ -94,28 +94,28 @@ All completed session durations fall within 5-480 minutes.
 ```json
 [
   {
-    "session_id": "SES-1FD07DCF0CAE",
-    "client_id": "CLI-5FA9D8E92722",
+    "session_id": "SES-8834A9298575",
+    "client_id": "CLI-FA6C87F7B0B5",
     "service_date": "2026-01-14"
   },
   {
-    "session_id": "SES-B2D92641AB61",
-    "client_id": "CLI-C270C071B8A9",
+    "session_id": "SES-E065828FB572",
+    "client_id": "CLI-75EA7375CDB7",
     "service_date": "2026-01-15"
   },
   {
-    "session_id": "SES-0E5A72AFC6D0",
-    "client_id": "CLI-FF19679A664C",
+    "session_id": "SES-6030A00B3D75",
+    "client_id": "CLI-BA9B9F9601FD",
     "service_date": "2026-01-20"
   },
   {
-    "session_id": "SES-20B044D719C7",
-    "client_id": "CLI-BA19C3E544D6",
+    "session_id": "SES-B477F668F9FF",
+    "client_id": "CLI-8A10DDAE6598",
     "service_date": "2026-01-21"
   },
   {
-    "session_id": "SES-BCE25BFE48D9",
-    "client_id": "CLI-DB30EF34BF8C",
+    "session_id": "SES-B4D0552DA3F0",
+    "client_id": "CLI-3D37DD4E8BC4",
     "service_date": "2026-01-22"
   }
 ]
@@ -140,31 +140,31 @@ No overlapping authorisation periods across 1,825 authorisations: every session 
 ```json
 [
   {
-    "auth_id": "ATH-16937EB510B3",
+    "auth_id": "ATH-5574BD341917",
     "units_authorized": 52,
     "units_delivered": 57.0,
     "utilization": 1.096
   },
   {
-    "auth_id": "ATH-86B489388238",
+    "auth_id": "ATH-B697521B4954",
     "units_authorized": 16,
     "units_delivered": 19.0,
     "utilization": 1.188
   },
   {
-    "auth_id": "ATH-F64395A45E7F",
+    "auth_id": "ATH-EC4C4D11542D",
     "units_authorized": 52,
     "units_delivered": 59.0,
     "utilization": 1.135
   },
   {
-    "auth_id": "ATH-3B9BABBC0DC1",
+    "auth_id": "ATH-24B44DBB249B",
     "units_authorized": 16,
     "units_delivered": 18.0,
     "utilization": 1.125
   },
   {
-    "auth_id": "ATH-9305C8920A4B",
+    "auth_id": "ATH-D6BE214314E7",
     "units_authorized": 52,
     "units_delivered": 53.0,
     "utilization": 1.019
