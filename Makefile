@@ -94,6 +94,7 @@ dashboard:
 	$(PY) scripts/build_dashboard.py
 
 digest:
+	@test -f data/out/reports/weekly_digest.md || { echo "No digest yet -- run 'make run' first."; exit 1; }
 	@cat data/out/reports/weekly_digest.md
 
 docs:

@@ -11,7 +11,7 @@ numbers -- they are a laptop, single-process, SQLite -- but the *shape*: which
 stages scale linearly with rows, which scale worse, and therefore which one
 would have to be rewritten first.
 
-    python scripts/benchmark.py --scales 1 4 16
+    python scripts/benchmark.py --scales 1 4 12
 """
 
 from __future__ import annotations

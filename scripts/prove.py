@@ -176,6 +176,13 @@ SABOTAGES: list[Sabotage] = [
 # ---------------------------------------------------------------------------
 
 
+def _clip(text: str, limit: int = 200) -> str:
+    """Trim on a word boundary. A figure cut mid-digits reads as a figure."""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + " ..."
+
+
 def run_pipeline(work: Path) -> tuple[int, str]:
     """One full pipeline run in the sandbox copy. Returns (exit code, output)."""
     proc = subprocess.run(
@@ -207,13 +214,13 @@ def evidence(output: str, work: Path) -> str:
                    "PHI EGRESS", "PUBLICATION HALTED", "FAILED"):
         for line in output.splitlines():
             if marker in line:
-                return line.strip()[:200]
+                return _clip(line.strip())
     diff_report = work / "data" / "out" / "reports" / "data_diff.md"
     if diff_report.exists():
         text = diff_report.read_text(encoding="utf-8")
         for line in text.splitlines():
             if "rows differ" in line:
-                return line.strip().replace("**", "")[:200]
+                return _clip(line.strip().replace("**", ""))
         # A definition change can move every published figure while leaving
         # every warehouse row identical, so "rows differ" never appears. The
         # diff says so in a banner instead, and a harness that only counted
@@ -222,7 +229,7 @@ def evidence(output: str, work: Path) -> str:
         # gone stale is worse than no report.
         for line in text.splitlines():
             if "definitions changed" in line.lower():
-                return line.strip().replace("**", "").lstrip("> ")[:200]
+                return _clip(line.strip().replace("**", "").lstrip("> "))
     return ""
 
 

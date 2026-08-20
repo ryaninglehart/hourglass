@@ -247,7 +247,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   const uomExcluded = uomCheck ? uomCheck.affected_rows : 0;
   const kpis = [
     ['Hours at risk', num(h.at_risk_hours), `${h.at_risk_count} authorisations expiring within 30 days`],
-    ['Children affected', num(h.at_risk_children), 'have approved hours about to expire unused'],
+    ['Children affected', h.at_risk_children == null ? 'fewer than 11' : num(h.at_risk_children), 'have approved hours about to expire unused'],
     ['Unused hours, all open auths', num(h.hours_unused), 'authorised but not yet delivered'],
     ['Measure coverage', pct(coverage,1), `${num(uomExcluded)} sessions excluded — unit of measure unknown`],
   ];
@@ -267,7 +267,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 
   /* ---------- at-risk table ---------- */
   $('atRiskSub').textContent =
-    `${h.at_risk_count} authorisations covering ${h.at_risk_children} children expire within 30 days ` +
+    `${h.at_risk_count} authorisations covering ${h.at_risk_children ?? 'fewer than 11'} children expire within 30 days ` +
     `with at least a quarter of their hours undelivered. ` +
     `The ${Math.min(15, D.at_risk.length)} expiring soonest are shown, most urgent first.`;
   $('atRiskBody').innerHTML = D.at_risk.slice(0,15).map(r => `

@@ -1,6 +1,6 @@
 [project]
 name = "hourglass"
-version = "0.7.0"
+version = "0.7.1"
 description = "Authorisation utilisation pipeline for paediatric therapy (synthetic data)"
 requires-python = ">=3.11"
 dependencies = ["pandas>=2.1", "boto3>=1.34"]

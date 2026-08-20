@@ -237,7 +237,10 @@ def land_extracts(
 ) -> dict:
     """Copy every extract in ``raw_dir`` into the lake and write a manifest."""
     ensure_dirs()
-    ingest_date = ingest_date or date.today()
+    # UTC like every other timestamp in the pipeline. Local midnight put
+    # the partition a calendar day away from the manifest's generated_at_utc
+    # for any late-evening run west of Greenwich.
+    ingest_date = ingest_date or datetime.now(UTC).date()
     backend = backend or make_backend()
     backend.ensure_bucket()
 

@@ -131,6 +131,21 @@ class TestChecksAgainstData:
 
     def test_every_check_returns_a_result(self, ctx):
         results = quality.run_checks(ctx)
+        # By name, not by count. A sabotage run removed twelve checks --
+        # all three PHI gates among them -- and the count-only version of
+        # this assertion, along with 457 other tests, stayed green: the
+        # check functions were tested individually, their registration in
+        # the gate was guarded by nothing.
+        assert {r.name for r in results} == {
+            "uom_resolution_coverage", "session_reconciliation",
+            "orphan_foreign_keys", "duration_plausibility",
+            "scd_type2_integrity", "duplicate_session_submissions",
+            "unmapped_service_codes", "sessions_without_authorization",
+            "overlapping_authorization_periods", "utilization_over_ceiling",
+            "zero_unit_authorizations", "session_length_distribution_shift",
+            "uom_coverage_step_change", "phi_egress", "phi_content_scan",
+            "pseudonym_salt_configured", "row_counts",
+        }
         assert len(results) == len(quality.CHECKS)
         assert all(isinstance(r, CheckResult) for r in results)
         assert all(r.message for r in results)

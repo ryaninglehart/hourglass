@@ -82,7 +82,7 @@ If a recruiter call starts in ten minutes, learn these eight things.
    INC-005.
 
 8. **The number.** 52,160 sessions, 1,825 authorisations, 240 children,
-   459 tests, 17 quality checks, 11 registered metrics, twelve orchestrated
+   461 tests, 17 quality checks, 11 registered metrics, twelve orchestrated
    tasks, eight warehouse tables plus a run log. All synthetic.
 
 ---
@@ -517,7 +517,8 @@ the interesting part rather than a defence.
 > raises on a disagreement. Same principle as the byte-level PHI scan: check the
 > artifact, not the plan.
 >
-> And it covers five figures. The at-risk table, the per-payer and per-discipline
+> And it covers seven figures — pace itself only since a sabotage published
+> 76.0% for 75.1% unchallenged. The at-risk table, the per-payer and per-discipline
 > breakdowns and the assumption spread are still computed in `export.py` by
 > routes nothing re-derives, so the class of defect is open below the tiles. I'd
 > rather say that than imply the hole is closed."
@@ -621,8 +622,8 @@ blocks publication if anything identifying would cross.
    after the task loop ends, which is after `verify` has already read it. So
    what `verify` opens in each case is the previous run's copy, and on a fresh
    clone there is nothing to open — the run prints the consequence, reporting
-   13 artifacts on a cold `make clean && make run`, 14 on the next `make run`,
-   and 15 once `dashboard.html` exists. The JSON payload the dashboard is built
+   15 artifacts on a cold `make clean && make run`, 16 on the next `make run`,
+   and 17 once `dashboard.html` exists. The JSON payload the dashboard is built
    from *is* scanned in the same run, so the data path is covered and the
    rendered HTML is covered on the next build. If they ask how you'd fix it:
    either move the render inside the pipeline and flush the log before `verify`
@@ -706,8 +707,9 @@ value of **1 to 10** may be reported, zero is fine, and no cell may be published
 that lets a 1-to-10 value be *derived*.
 
 **Where it is applied, and say this exactly rather than "every count".**
-`digest.py` is the only caller in `src/`. The dashboard, the BI CSVs and the
-quality report publish their counts unsuppressed. That is defensible at the
+`digest.py` and the org-wide child count in `export.py` are the only callers
+in `src/`. The remaining panels, the BI CSVs and the quality report publish
+their counts unsuppressed. That is defensible at the
 grain they use — 240 children and 1,825 authorisations for the whole population
 are not disclosive — and it is defensible by argument, not by enforcement. Add a
 per-centre panel to the dashboard tomorrow and nothing routes it through
@@ -1010,8 +1012,8 @@ section is five.
 
 ## The tests, and what a test count does not tell you
 
-459 tests across 15 files. Be able to say what that number is worth, because a
-good interviewer will ask, and "459" on its own is a claim about volume.
+461 tests across 15 files. Be able to say what that number is worth, because a
+good interviewer will ask, and "461" on its own is a claim about volume.
 
 **Three tests carry more weight than the rest**, and these are the ones to name:
 
@@ -1143,8 +1145,10 @@ is a privacy rule enforced on one code path and absent on the other.
 **And the limits, which are in that document rather than glossed:** a high score
 does not mean the tests assert the right things — a suite can pin the wrong
 constant just as firmly and score 100%. Equivalent mutants put the attainable
-ceiling for `disclosure.py` at 82.5%, not 100%, and deciding which survivors are
-equivalent is a manual judgement with no algorithm behind it. Comparing mutation
+ceiling below 100% — on the current `disclosure.py` run both survivors are
+proven equivalent, so the recorded 97.5% is that run's ceiling, already met —
+and deciding which survivors are equivalent is a manual judgement with no
+algorithm behind it. Comparing mutation
 scores across projects is therefore meaningless. It is a periodic audit, not a CI
 gate, because the full suite against 97 mutants would now take a little over two
 hours.
@@ -1409,7 +1413,7 @@ Say these plainly if they come up. Each is followed by the nearest thing you
 
 - [ ] Run `make gate` and watch it fail. Understand the exit code.
 - [ ] Run `make run` and watch it publish. Read the acknowledgement in the log.
-- [ ] Run `make test` and know roughly what the 459 tests cover.
+- [ ] Run `make test` and know roughly what the 461 tests cover.
 - [ ] Run `python scripts/run_analytics.py --only 3` and be able to explain the
       55× number without notes.
 - [ ] Open `dashboard.html` and be able to say what each panel is for.

@@ -406,6 +406,12 @@ class TestPublishedHeadlines:
                 "units_delivered": 14.0,
                 "active_authorizations": 2,
                 "closed_authorizations": 0,
+                # By hand, from the dates: both periods run 2026-06-01 to
+                # 2026-09-01 inclusive (93 days), 62 days elapsed at the
+                # as-of date, so each authorisation expects 62/93 of its
+                # units: (20 + 10) x 62/93 = 20 exactly. Pace is 14/20.
+                "expected_units_to_date": 20.0,
+                "pace": 0.7,
             },
         }
 
@@ -526,7 +532,9 @@ class TestRenderingPublishedHeadlines:
                    "headline": {"hours_unused": 8.0, "units_authorized": 30.0,
                                 "units_delivered": 14.0,
                                 "active_authorizations": 2,
-                                "closed_authorizations": 0}}
+                                "closed_authorizations": 0,
+                                "expected_units_to_date": 20.0,
+                                "pace": 0.7}}
         out = metrics.render_published(
             metrics.check_published_headlines(warehouse, payload))
         assert "cannot be reproduced" not in out

@@ -241,7 +241,10 @@ def utilization_by(util: pd.DataFrame, dimension: str) -> pd.DataFrame:
     two-thousand-unit one, which is how a report ends up disagreeing with the
     number underneath it.
     """
-    grouped = util.groupby(dimension, as_index=False).agg(
+    # dropna=False: an authorisation with an unknown payer or centre must
+    # surface as an unknown group, not vanish -- the default silently
+    # removes its units from every rollup, with no error and no residual.
+    grouped = util.groupby(dimension, as_index=False, dropna=False).agg(
         authorizations=("auth_id", "nunique"),
         units_authorized=("units_authorized", "sum"),
         units_delivered=("units_delivered", "sum"),
@@ -254,9 +257,12 @@ def utilization_by(util: pd.DataFrame, dimension: str) -> pd.DataFrame:
         hours_authorized=("hours_authorized", "sum"),
     )
     grouped["utilization"] = grouped["units_delivered"] / grouped["units_authorized"]
-    grouped["pace"] = (
-        grouped["units_delivered"] / grouped["expected_units_to_date"]
-    ).fillna(0)
+    # Same rule as the per-row pace in `build_utilization`: nothing expected
+    # yet is undefined, not nil -- and not infinite, which is what delivery
+    # against a zero denominator produced here, straight past fillna(0).
+    expected = grouped["expected_units_to_date"].where(
+        grouped["expected_units_to_date"] != 0)
+    grouped["pace"] = grouped["units_delivered"] / expected
     return grouped.sort_values("pace").reset_index(drop=True)
 
 

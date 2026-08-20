@@ -69,7 +69,9 @@ class TestExecution:
 
     def test_records_duration_per_task(self):
         result = Orchestrator([task("a")], run_id="r1", sleep=NO_SLEEP).run()
-        assert result.tasks[0].duration_seconds >= 0
+        # Strictly positive: a timer replaced with a constant 0.0 satisfied
+        # the previous >= 0 for every task, forever.
+        assert result.tasks[0].duration_seconds > 0
         assert result.tasks[0].status is TaskStatus.SUCCEEDED
 
     def test_seed_context_is_available(self):

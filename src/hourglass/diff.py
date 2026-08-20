@@ -206,10 +206,17 @@ def diff_frames(before: pd.DataFrame, after: pd.DataFrame,
     # module from the code depending on it.
     b = before.copy()
     a = after.copy()
-    for frame in (b, a):
-        for key in keys:
-            if frame[key].isna().any():
-                frame[key] = _stringify(frame[key])
+    # Both sides or neither. Normalising only the side that carried the null
+    # sent an int64 key through pandas' float promotion on that side alone --
+    # "20260101.0" against "20260101" -- so the key sets were disjoint and
+    # every row reported as both added and removed. The numeric path renders
+    # the two sides identically before the null sentinel goes in.
+    for key in keys:
+        if b[key].isna().any() or a[key].isna().any():
+            for frame in (b, a):
+                as_num = _as_number(frame[key])
+                frame[key] = _stringify(as_num if as_num is not None
+                                        else frame[key])
 
     b = b.set_index(keys, drop=False)
     a = a.set_index(keys, drop=False)

@@ -1,6 +1,8 @@
 # Incidents
 
-Seven defects found during the build of this pipeline, written up the way a team
+Seven defects found during the build of this pipeline, and three more —
+INC-008 to INC-010 — found on 20 August 2026 by a fourth adversarial review
+pass after the first public release. All ten are written up the way a team
 writes post-incident notes: what happened, how it was found, why it was
 possible, and what changed.
 
@@ -9,9 +11,11 @@ system does. Whether a pipeline works today is the least interesting thing
 about it — it works today because the person who wrote it was looking at it
 today. The question worth answering is what happens when it stops, and a
 repository that shows only passing tests has not answered it. Each of these
-made it into working code, and six of the seven produced a plausible result
-rather than an error. The exception is INC-007, which raised loudly — on a
-machine nobody had run it on, which is why it survived the longest.
+made it into working code, and eight of the ten produced a plausible result
+rather than an error. The exceptions are INC-007, which raised loudly — on a
+machine nobody had run it on, which is why it survived the longest — and
+INC-008, which raised loudly and then printed a false account of what the
+failure had left behind.
 
 Every entry ends with the part most write-ups leave out: the *class* of defect,
 and the mechanism that now catches that class without anyone having to remember
@@ -62,9 +66,12 @@ test could not have failed; its shape excluded the defect from view.
   be forgotten is worth more than eleven call sites that currently remember.
 - A new `verify` pipeline task re-reads the published files as bytes and scans
   for raw identifier patterns. It runs last, knows nothing about what any file
-  means, raises rather than warns, and deletes the offending files. Only the BI
-  CSVs are globbed (`EXPORT_DIR.glob("*.csv")`, eight of them today); every
-  other path is named one by one, which is a weakness worth stating here rather
+  means, raises rather than warns, and deletes the offending files. (Since
+  INC-008 it restores the previous published build rather than leaving a hole;
+  since INC-010 the paths are globbed rather than named.) At the time of this
+  fix only the BI CSVs were globbed (`EXPORT_DIR.glob("*.csv")`, eight of them
+  today); every
+  other path was named one by one, which was a weakness worth stating here rather
   than in a footnote. `metric_parity.md`, `data_diff.md` and `benchmark.md` are
   written to the same directory and nobody added them. `dashboard.html` is
   rendered after the pipeline exits and `pipeline_runs.jsonl` is flushed after
@@ -226,8 +233,10 @@ lived on.
 
 **Fix.**
 
-- An `analytics._flag()` helper that coerces to bool at every flag read, used at
-  each of the four places a flag column is filtered on.
+- An `analytics._flag()` helper that coerces to bool at every flag read, used
+  at every place a flag column is filtered on — four at the time of the fix,
+  eight today. The count went stale in an earlier revision of this sentence,
+  which is this log's own INC-003 lesson applied to itself.
 - A test asserting that the boolean and integer paths produce the same
   utilisation, and one asserting a cancelled session stays excluded under
   integer flags (`tests/test_metrics.py`).
@@ -326,10 +335,11 @@ the screen, and the passing report is worse than no report — it is an audit
 trail attesting to a number nobody displayed. The only mechanism that closes it
 is re-deriving the published artifact from the source of truth, which is what
 the headline check now does and what INC-001's scan was already doing for a
-different property. Note the limit immediately: it covers
-five figures. The at-risk table, the per-payer and per-discipline breakdowns and
-the assumption spread are all still computed in `export.py` by routes nothing
-re-derives.
+different property. Note the limit immediately: it covered five figures when
+this was written, and the figure a reader sees first — pace — was not among
+them, which became INC-009. It covers seven today. The at-risk table, the
+per-payer and per-discipline breakdowns and the assumption spread are all
+still computed in `export.py` by routes nothing re-derives.
 
 There is a second observation, and it is the uncomfortable one. This rule is
 stated in the README as a numbered design decision and in comments in
@@ -397,9 +407,11 @@ as long as the hash was wrong.
 - `ruleset_hash()` now includes the unit-conversion table as
   `{service_code: minutes_per_unit}`, and `RULESET_VERSION` went to 1.9.0.
   Verified by substitution rather than by reading — on the rule set as it stands
-  today, speech at 45 minutes hashes to `ae0bc03167c6e636` and at 15 minutes to
-  `9b346469c255e733`, and a thirty-day at-risk window hashes to
-  `ae0bc03167c6e636` against `9fcc5d7b2014131c` for ninety.
+  under rule set 1.9.0, speech at 45 minutes hashed to `ae0bc03167c6e636` and
+  at 15 minutes to `9b346469c255e733`, and a thirty-day at-risk window hashed
+  to `ae0bc03167c6e636` against `9fcc5d7b2014131c` for ninety. (Under 1.10.0,
+  which added the suppression threshold — INC-010 — the same three are
+  `7873731d9d66f3d2`, `d0c6fc87ca748bda` and `5de6a73ed75ed14b`.)
 - `task_diff` reads the previous *published* build's hash out of its `run_log`
   (`SELECT ruleset_hash FROM run_log WHERE published = 1 ORDER BY
   finished_at_utc DESC LIMIT 1`) and compares it. A missing value — a first run,
@@ -549,7 +561,119 @@ themselves ran in.
 
 ---
 
-## Reading across the seven
+## INC-008 — A run that failed after publishing left its own artifacts serving, under a console line saying nothing was published
+
+`task_publish` writes the BI CSVs, the dashboard payload and the digest;
+`task_verify` then re-derives the published headlines and raises on a mismatch.
+The failure was loud — exit 1, the right word in capitals — and the aftermath
+was wrong twice over. The failed run's files stayed on disk, replacing the
+previous good set, so anything reading `data/out/` consumed the numbers the
+pipeline had just refused to stand behind. And the console printed "Nothing was
+published," which was precisely false: everything had been published, and
+nothing had been taken back.
+
+The warehouse had the opposite guarantee from the first day — scratch build,
+atomic rename, quarantine on refusal, previous build left serving. The exports,
+the artifacts a reader actually opens, had none of it.
+
+**Found by.** The fourth adversarial review pass, re-applying INC-005's own
+sabotage — restore the flat quarter-hour divisor — and then reading the disk
+after the failure instead of the exit code. The wrong payload was still there;
+the digest had been rewritten with it.
+
+**Fix.**
+
+- `task_publish` snapshots every file it is about to overwrite. A failure
+  anywhere in `task_verify` restores the snapshot before the exception
+  propagates: previous bytes back, files with no predecessor removed.
+  Asserted by `test_a_failed_verify_restores_the_previous_published_build`.
+- The console line is conditional now. A post-publication failure reports that
+  this run's artifacts were withdrawn and the previous build still serves,
+  which is what actually happened.
+
+**Class of defect: a guarantee implemented for one store and assumed for the
+other.** The question that finds the class: for every place a run writes, what
+is serving from there after this run fails?
+
+---
+
+## INC-009 — The headline check covered five figures, and the figure a reader sees first was not among them
+
+`check_published_headlines` exists because of INC-005: re-derive the dashboard's
+published numbers from the warehouse, because the parity check attests to
+registry definitions and says nothing about the tiles. It covered `hours_unused`,
+`units_authorized`, `units_delivered` and the two authorisation counts. It did
+not cover pace — the percentage in 64-point type at the top of the page.
+
+A sabotage recomputed pace over every authorisation instead of the open ones.
+The dashboard published 76.0% where the true figure was 75.1%, exit 0, nothing
+objected. The same review found the pace-by-payer, by-discipline and by-centre
+panels were *already* computed over that wrong population, under a subtitle
+reading "Same measure": every bar sat up to three points from the hero figure it
+claimed to break down, and no reader could have reconciled them.
+
+**Found by.** Extending the sabotage harness with cases nobody had thought to
+run, which is what its closing banner says to do.
+
+**Fix.**
+
+- Two figures added to the re-derivation: `expected_units_to_date`, and `pace`
+  as SQL date arithmetic mirroring `analytics.build_utilization` — with its own
+  tolerance, because the half-unit tolerance that suits summed figures would
+  accept literally any value of a ratio.
+- The three breakdown panels are computed over the hero's population, so "same
+  measure" is now true rather than approximately true.
+
+**Class of defect: INC-005's class, recurring in the same file.** A check
+verifies the value it names, not the value the reader sees — and a scope that
+lives in a hand-maintained dict re-creates the gap every time the payload grows.
+The at-risk table and the assumption spread are still outside it, and the
+README says so.
+
+---
+
+## INC-010 — The rule-set hash's own comment warned that a left-out threshold is worse than none, and one was left out
+
+`quality.ruleset_hash` fingerprints every constant that decides what a run
+publishes, so that two builds can be compared knowing whether the rules moved
+(INC-006). The comment above its threshold table reads: "One that is left out
+makes the hash a partial fingerprint, which is worse than none." The small-cell
+suppression threshold was not in the table.
+
+A sabotage weakened `SUPPRESSION_THRESHOLD` from 10 to 2. The run published
+previously suppressed counts — the exact disclosure the control exists to
+prevent — with exit 0 and an unchanged hash, `ae0bc03167c6e636`. Nothing
+in the run's record distinguished it from the build before it.
+
+The same pass found two more instances of the same shape. The byte-scan's file
+list was written out by hand and had drifted: `metric_parity.md` and
+`data_diff.md` were published, committed to `samples/`, and never scanned,
+while the docstring above the scan claimed "every published file." And the
+org-wide child count was suppressed in the digest but published raw in
+`dashboard_data.json` — one figure, two policies, depending on which artifact
+you opened.
+
+**Found by.** The sabotage harness again, aimed at the controls themselves
+rather than the data.
+
+**Fix.**
+
+- `SUPPRESSION_THRESHOLD` joined the fingerprint; `RULESET_VERSION` went to
+  1.10.0. The base hash is now `7873731d9d66f3d2`, and weakening the threshold
+  moves it.
+- The scan list is a glob over the export and report directories, so a report
+  added tomorrow is scanned by default rather than remembered by somebody.
+- The child count is suppressed at the source, in the payload, and the digest
+  recomputes the real number from the frame it is handed.
+
+**Class of defect: INC-006's class — a partial fingerprint, and a
+hand-maintained list restating what a directory already knows.** Both go stale
+silently. The fix in every case is deriving the claim from the thing: hash the
+constant, glob the directory.
+
+---
+
+## Reading across the ten
 
 Four of the first five were found by reading output or source, not by a test. The
 diff's row count was implausible, the published bytes contained something that
@@ -577,6 +701,13 @@ describing a blind spot the code had already closed, because its detector was
 looking for the old evidence. A document that describes a state the code has
 left is the same defect as a comment asserting a property the code does not have
 (INC-003), one level up.
+
+The three from the fourth pass needed no new classes. INC-008 is INC-001's
+question asked of a different store — check the artifact, not the plan.
+INC-009 is INC-005's class recurring in the same file. INC-010 is INC-006's
+partial fingerprint, predicted by the comment sitting directly above the
+defect. A log that keeps absorbing new instances without needing new classes
+is measuring something real about where this codebase fails.
 
 INC-007 came from the one place no check in this repository can reach, which is
 another machine. It is the sharpest entry here for that reason: every

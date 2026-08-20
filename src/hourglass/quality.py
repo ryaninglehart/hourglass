@@ -4,7 +4,7 @@ Three severities, and only one of them stops the pipeline:
 
     BLOCK  the number cannot be trusted. Publication halts.
     WARN   the number is usable but something needs a human. Publication proceeds.
-    INFO   recorded for the run log so drift is visible over time.
+    INFO   recorded in the run's quality report. No history is kept.
 
 A blocking failure can be released, but not quietly. The operator has to name
 the check and give a written reason, and the run log records the reason, the
@@ -46,8 +46,9 @@ from .config import (
     UTILIZATION_CEILING,
     UTILIZATION_FLOOR,
 )
+from .disclosure import SUPPRESSION_THRESHOLD
 
-RULESET_VERSION = "1.9.0"
+RULESET_VERSION = "1.10.0"
 UOM_COVERAGE_FLOOR = 0.99
 COVERAGE_STEP_THRESHOLD = 0.02
 
@@ -873,6 +874,14 @@ def ruleset_hash() -> str:
                 "max_minutes": MAX_PLAUSIBLE_MINUTES,
                 "expiry_warning_days": EXPIRY_WARNING_DAYS,
                 "at_risk_unused_fraction": AT_RISK_UNUSED_FRACTION,
+                # Absent until 1.10.0, which was the partial-fingerprint
+                # failure the comment above warns about, found by sabotage:
+                # weakening the small-cell threshold to 2 published
+                # previously suppressed counts and the hash did not move.
+                # Not a check threshold -- it changes what is published, not
+                # any verdict -- and that is exactly why it belongs in the
+                # fingerprint a reader uses to compare two builds.
+                "suppression_threshold": SUPPRESSION_THRESHOLD,
             },
             # The unit conversion table is a definition, not a threshold, and
             # leaving it out made this a partial fingerprint of exactly the

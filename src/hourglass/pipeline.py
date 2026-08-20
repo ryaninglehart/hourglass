@@ -73,7 +73,7 @@ from .generate import generate
 from .ingest import land_extracts, make_backend
 from .orchestration import Orchestrator, Task
 
-CODE_VERSION = "0.7.0"
+CODE_VERSION = "0.7.1"
 RUN_LOG_PATH = REPORT_DIR / "pipeline_runs.jsonl"
 
 _RETRIES: dict[str, int] = {}
@@ -497,18 +497,35 @@ def task_publish(ctx: dict) -> dict:
         _not_applicable(ctx, "publish", "the gate refused; nothing was written")
         return {"published_paths": [], "digest_path": None}
 
+    # What publication is about to overwrite, kept so a failure in `verify`
+    # can put it back. The warehouse has this guarantee twice over -- scratch
+    # build, atomic rename, quarantine -- and the exports had none: a run
+    # that failed after writing left its own artifacts on disk while the
+    # console said nothing was published.
+    snapshot: dict[Path, bytes | None] = {}
+    for prior in [*EXPORT_DIR.glob("*.csv"), EXPORT_DIR / "dashboard_data.json",
+                  EXPORT_DIR / "relationships.md",
+                  REPORT_DIR / "weekly_digest.md"]:
+        snapshot[prior] = prior.read_bytes() if prior.exists() else None
+
     published_paths = export.export_csvs(ctx["publish_frames"])
     export.write_relationship_spec()
 
     util, at_risk_safe = ctx["utilization"], ctx["at_risk_safe"]
+    # The same population as the hero tile. These charts say "same measure",
+    # and until they shared the hero's population they were not: computed
+    # over every authorisation -- closed ones frozen at final utilisation,
+    # future ones expecting nothing -- each bar sat up to three points from
+    # the figure it was labelled as breaking down.
+    open_util = util.loc[util["is_active"]]
     payload = export.build_dashboard_payload(
         util=util,
         at_risk=at_risk_safe,
-        by_payer=analytics.utilization_by(util, "payer_name").merge(
+        by_payer=analytics.utilization_by(open_util, "payer_name").merge(
             util[["payer_name", "contract_type"]].drop_duplicates(),
             on="payer_name", how="left"),
-        by_discipline=analytics.utilization_by(util, "discipline"),
-        by_center=analytics.utilization_by(util, "center_name"),
+        by_discipline=analytics.utilization_by(open_util, "discipline"),
+        by_center=analytics.utilization_by(open_util, "center_name"),
         monthly=analytics.monthly_delivery(ctx["fact_session"], ctx["dim_date"]),
         quality=decision.to_dict(),
         comparison=analytics.unit_assumption_spread(ctx["sessions_resolved"]),
@@ -528,9 +545,11 @@ def task_publish(ctx: dict) -> dict:
     # cannot disagree about what is at risk this week.
     digest_path = digest.write_digest(
         digest.build_digest(at_risk=at_risk_safe, headline=payload["headline"],
-                            quality=payload["quality"], meta=payload["meta"]),
+                            quality=payload["quality"], meta=payload["meta"],
+                            comparison=payload["comparison"]),
         REPORT_DIR)
-    return {"published_paths": published_paths, "digest_path": digest_path}
+    return {"published_paths": published_paths, "digest_path": digest_path,
+            "export_snapshot": snapshot}
 
 
 def task_verify(ctx: dict) -> dict:
@@ -549,28 +568,43 @@ def task_verify(ctx: dict) -> dict:
     deliberately dumb: it does not know what any file means, only what a source
     identifier looks like and that none belongs here.
 
-    A finding raises. It cannot be acknowledged, it is not a WARN, and it does
-    not produce a report -- by the time this runs the files are already on
-    disk, so the only useful response is to fail loudly and delete them.
+    A finding raises. It cannot be acknowledged and it is not a WARN -- by
+    the time this runs the files are already on disk, so the response is to
+    fail loudly and withdraw them, putting the previous published build back.
     """
     if not ctx["decision"].published:
         _not_applicable(ctx, "verify", "nothing was published to re-read")
         return {"artifact_findings": [], "artifacts_scanned": 0}
+    try:
+        return _verify_published(ctx)
+    except Exception:
+        # A run that fails at the last step must not leave its own artifacts
+        # serving. Everything publication wrote rolls back to the previous
+        # build; the reports stay, because they describe the failure and
+        # that is the record a reader needs.
+        _restore_exports(ctx.get("export_snapshot") or {})
+        raise
 
-    artifacts = [
-        *EXPORT_DIR.glob("*.csv"),
-        EXPORT_DIR / "dashboard_data.json",
-        EXPORT_DIR / "relationships.md",
-        REPORT_DIR / "quality_report.md",
-        REPORT_DIR / "quality_report.json",
-        REPORT_DIR / "weekly_digest.md",
-        REPORT_DIR / "pipeline_runs.jsonl",
-        ROOT / "dashboard.html",
-    ]
-    findings = phi.scan_published_artifacts(artifacts)
-    scanned = sum(1 for a in artifacts if a.exists())
 
-    # Second half of the verification, and a different question: are the
+def _restore_exports(snapshot: dict[Path, bytes | None]) -> None:
+    """Put the previously published artifacts back after a failed verify."""
+    if not snapshot:
+        return
+    for current in EXPORT_DIR.glob("*.csv"):
+        if current not in snapshot:
+            current.unlink(missing_ok=True)
+    for path, blob in snapshot.items():
+        if blob is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(blob)
+
+
+def _verify_published(ctx: dict) -> dict:
+    # The headline re-derivation runs first, so the byte scan afterwards
+    # reads every file in its final state -- including the section this
+    # block appends to the parity report. A different question than the
+    # scan asks: are the
     # numbers on the published dashboard reproducible from the warehouse they
     # claim to describe?
     #
@@ -603,6 +637,23 @@ def task_verify(ctx: dict) -> dict:
                 + "\n" + metrics.render_published(headline_results),
                 encoding="utf-8")
 
+    # The scan list was once written out by hand, and drifted: data_diff.md
+    # and metric_parity.md were published, committed to `samples/`, and
+    # never scanned. A hand-maintained list of "every published file" goes
+    # stale silently, so the list is now everything the run writes where a
+    # reader will look, plus the dashboard.
+    artifacts = [
+        *sorted(EXPORT_DIR.glob("*.csv")),
+        *sorted(EXPORT_DIR.glob("*.json")),
+        *sorted(EXPORT_DIR.glob("*.md")),
+        *sorted(REPORT_DIR.glob("*.md")),
+        *sorted(REPORT_DIR.glob("*.json")),
+        *sorted(REPORT_DIR.glob("*.jsonl")),
+        ROOT / "dashboard.html",
+    ]
+    findings = phi.scan_published_artifacts(artifacts)
+    scanned = sum(1 for a in artifacts if a.exists())
+
     if findings:
         detail = "; ".join(
             f"{f.count}x {f.pattern} in {Path(f.path).name}" for f in findings)
@@ -610,7 +661,8 @@ def task_verify(ctx: dict) -> dict:
             Path(finding.path).unlink(missing_ok=True)
         raise RuntimeError(
             f"PHI EGRESS: raw source identifiers found in published artifacts "
-            f"after writing ({detail}). The offending files have been deleted. "
+            f"after writing ({detail}). The offending files have been "
+            f"withdrawn and the previous published build restored. "
             f"This is a defect in the publication path, not a data problem -- "
             f"something reached a file without passing through "
             f"phi.deidentify_for_export."
@@ -740,7 +792,15 @@ def run(acknowledgements: dict[str, str] | None = None,
 
     if not result.succeeded:
         failed = result.failed_task
-        _log(f"\n  Pipeline failed at '{failed.name}'. Nothing was published.\n", quiet)
+        # "Nothing was published" was printed unconditionally, and it was
+        # false for exactly the failures where it mattered most: a run that
+        # died in `verify` had already written its artifacts.
+        if decision is not None and decision.published:
+            aftermath = ("This run's published artifacts were withdrawn; "
+                         "the previous build still serves.")
+        else:
+            aftermath = "Nothing was published."
+        _log(f"\n  Pipeline failed at '{failed.name}'. {aftermath}\n", quiet)
         return {"run_id": run_id, "succeeded": False, "published": False,
                 "decision": decision, "run": result, "frames": ctx.get("frames", {})}
 

@@ -24,6 +24,7 @@ from pathlib import Path
 import pandas as pd
 
 from .config import EXPORT_DIR, UTILIZATION_CEILING, UTILIZATION_FLOOR
+from .disclosure import needs_suppression
 from .model import _normalise
 
 BI_TABLES = ["dim_date", "dim_client", "dim_service", "dim_provider", "dim_center",
@@ -104,6 +105,11 @@ def write_relationship_spec(out_dir: Path = EXPORT_DIR) -> Path:
     return path
 
 
+def _suppress_small(n: int) -> int | None:
+    """The org-wide people count, or None when 1-10 people would be shown."""
+    return None if needs_suppression(n) else n
+
+
 def build_dashboard_payload(
     util: pd.DataFrame,
     at_risk: pd.DataFrame,
@@ -161,7 +167,13 @@ def build_dashboard_payload(
             "hours_unused": round(float(active["hours_unused"].sum()), 1),
             "at_risk_count": len(at_risk),
             "at_risk_hours": round(float(at_risk["hours_unused"].sum()), 1),
-            "at_risk_children": int(at_risk["client_id"].nunique()) if len(at_risk) else 0,
+            # Suppressed at the source, not at render. dashboard_data.json
+            # is itself a published artifact, so a small count hidden only
+            # by the page would still sit raw in the payload underneath it.
+            # The digest applies this rule to this number; the dashboard did
+            # not, which was two policies for one figure.
+            "at_risk_children": _suppress_small(
+                int(at_risk["client_id"].nunique()) if len(at_risk) else 0),
         },
         "by_payer": by_payer.round(4).to_dict("records"),
         "by_discipline": by_discipline.round(4).to_dict("records"),

@@ -1,6 +1,6 @@
 # Mutation testing
 
-The suite has 459 tests. The fair question about any number like that is
+The suite has 461 tests. The fair question about any number like that is
 whether the tests assert anything or merely execute the code. This document
 answers it for the two modules where the tests are the entire safety argument.
 
@@ -29,12 +29,12 @@ killed over total. Coverage measures reach, mutation testing measures grip.
 | Tool | mutmut 3.7.0 (`pip install mutmut --break-system-packages`) |
 | Python | 3.11 |
 | Targets | `src/hourglass/disclosure.py`, `src/hourglass/transform.py` |
-| Paired tests | `tests/test_disclosure.py` (28 tests today, 26 at the time of the run), `tests/test_transform.py` (21) |
+| Paired tests | `tests/test_disclosure.py` (28 test functions today, 26 at the time of the run; pytest collects more, several are parametrised), `tests/test_transform.py` (21) |
 | Runner | `python -m pytest <paired test file>`, one invocation per mutant |
 | Parallelism | `--max-children 4` |
 
 Each mutant is checked against only the test file that covers its module, not
-against the whole suite. A full run now takes about 77 seconds; multiplied by 97
+against the whole suite. A full run now takes about 79 seconds; multiplied by 97
 mutants that is a little over two hours for one module, and the 942 `transform.py`
 mutants would be roughly twenty hours. The paired file takes about a second.
 The trade is stated in the limits section: a mutant that only some other test
@@ -443,7 +443,7 @@ out of context.
 **It is slow, and getting slower.** 97 mutants took about 18 seconds only
 because each was checked against one test file. Against the full suite as it
 stood at the time of the run -- 308 tests, 44 seconds -- the same 97 mutants
-would have taken roughly 70 minutes. The suite is now 459 tests and 79 seconds,
+would have taken roughly 70 minutes. The suite is now 461 tests and 79 seconds,
 which puts the same run at a little over two hours and the 942 `transform.py`
 mutants at about twenty. The cost grows with the suite, which is why this run is
 scoped and why mutation testing is a periodic audit here rather than a CI gate.
@@ -463,17 +463,20 @@ mutation testing would applaud. It checks that the tests are watching; it cannot
 check that they are watching the right thing.
 
 **Equivalent mutants put the ceiling below 100%, and the ceiling is not
-knowable.** Three of the twenty `disclosure.py` survivors cannot be killed by
-any test, because no input distinguishes them from the original. That puts the
-attainable score for this module at 80/97 = 82.5%, not 100%, and the equivalent
-fraction depends entirely on how much redundancy and defensive coding a given
+knowable in advance.** Three of the twenty survivors on the superseded
+97-mutant run could not be killed by any test, because no input distinguishes
+them from the original — an attainable ceiling of 94/97, about 96.9%, for that
+run. On the current run both survivors are proven equivalent, so the recorded
+97.5% (78/80) is that run's ceiling, already met. The equivalent fraction
+depends entirely on how much redundancy and defensive coding a given
 codebase contains. Deciding which survivors are equivalent is a manual judgement
 with no algorithm behind it — the general problem is undecidable. Comparing a
 mutation score across projects, or treating a target percentage as a standard,
 is therefore meaningless.
 
-**This run covers two of eighteen modules.** Scored: `disclosure.py` and
-`transform.py`. Not scored, and this document says nothing about them:
+**This run covers two of eighteen modules** (the eighteenth is the empty
+`__init__.py`). Scored: `disclosure.py` and `transform.py`. Not scored, and
+this document says nothing about them:
 `analytics.py`, `config.py`, `diff.py`, `digest.py`, `export.py`, `generate.py`,
 `incremental.py`, `ingest.py`, `metrics.py`, `model.py`, `orchestration.py`,
 `phi.py`, `pipeline.py`, `quality.py`, `sources.py`. `phi.py` and `quality.py`

@@ -163,6 +163,7 @@ def build_digest(
     headline: dict,
     quality: dict,
     meta: dict,
+    comparison: dict | None = None,
 ) -> str:
     """Render the digest as Markdown.
 
@@ -179,7 +180,10 @@ def build_digest(
          if r["name"] == "uom_resolution_coverage"), 0)
 
     n_auth = int(headline["at_risk_count"])
-    n_kids = int(headline["at_risk_children"])
+    # From the frame, not the payload: the payload's copy is suppressed
+    # before publication when the count is small, and the digest needs the
+    # real number to run its own pooling.
+    n_kids = int(at_risk["client_id"].nunique()) if len(at_risk) else 0
     hours = float(headline["at_risk_hours"])
     pace = float(headline["pace"])
 
@@ -273,14 +277,19 @@ def build_digest(
 
     # ---- the caveat, next to the number, not in a footnote ---------------
     if coverage < 0.99:
+        # The completed-session count, not the check's affected_rows: that
+        # figure sweeps in cancellations, no-shows and unmapped codes, none
+        # of which understate delivered care, and some of its rows predate
+        # the April change it was being blamed on.
+        affected = int((comparison or {}).get("affected_sessions", excluded))
         add("> **Before you use these numbers.** Our therapy system changed how it "
-            f"records session length, and **{excluded:,} sessions** since April "
-            f"cannot be read reliably. They are excluded rather than guessed at, "
-            f"so the hours-delivered figures here are **understated** — a family "
-            f"may have attended more than this shows. Confirm in the clinical "
-            f"record before contacting anyone about missed appointments. "
-            f"Coverage is currently {coverage:.1%}; the vendor fix is tracked "
-            f"under DE-412.")
+            f"records session length in April. **{affected:,} completed sessions** "
+            f"carry a duration that cannot be read reliably; they are excluded "
+            f"rather than guessed at, so the hours-delivered figures here are "
+            f"**understated** — a family may have attended more than this shows. "
+            f"Confirm in the clinical record before contacting anyone about "
+            f"missed appointments. Coverage is currently {coverage:.1%}; the "
+            f"vendor fix is tracked under DE-412.")
         add("")
 
     # ---- the work ---------------------------------------------------------

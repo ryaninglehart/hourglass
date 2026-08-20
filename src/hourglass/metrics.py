@@ -645,6 +645,33 @@ HEADLINE_SQL: dict[str, str] = {
         JOIN auth USING (auth_id)
         WHERE auth.period_end < :as_of
     """,
+    # The figure a reader sees first, and the one this check did not cover.
+    # A sabotage that recomputed pace over every authorisation instead of
+    # the open ones published 76.0% where the true figure was 75.1%, and
+    # nothing objected. The elapsed-fraction arithmetic mirrors
+    # `analytics.build_utilization` exactly: inclusive day counts, capped at
+    # the as-of date, clamped to [0, 1].
+    "expected_units_to_date": AUTH_GRAIN_CTE + """
+        SELECT SUM(rolled.units_authorized *
+                   MIN(MAX(MIN(julianday(auth.period_end), julianday(:as_of))
+                           - julianday(auth.period_start) + 1, 0)
+                       / (julianday(auth.period_end)
+                          - julianday(auth.period_start) + 1), 1)) AS value
+        FROM rolled
+        JOIN auth USING (auth_id)
+        WHERE auth.period_start <= :as_of AND auth.period_end >= :as_of
+    """,
+    "pace": AUTH_GRAIN_CTE + """
+        SELECT SUM(rolled.units_delivered)
+               / SUM(rolled.units_authorized *
+                     MIN(MAX(MIN(julianday(auth.period_end), julianday(:as_of))
+                             - julianday(auth.period_start) + 1, 0)
+                         / (julianday(auth.period_end)
+                            - julianday(auth.period_start) + 1), 1)) AS value
+        FROM rolled
+        JOIN auth USING (auth_id)
+        WHERE auth.period_start <= :as_of AND auth.period_end >= :as_of
+    """,
 }
 
 HEADLINE_SCOPE: dict[str, str] = {
@@ -653,6 +680,8 @@ HEADLINE_SCOPE: dict[str, str] = {
     "units_delivered": "open authorisations only",
     "active_authorizations": "open on the as-of date",
     "closed_authorizations": "period ended before the as-of date",
+    "expected_units_to_date": "open authorisations only",
+    "pace": "units delivered over units expected to date, open authorisations only",
 }
 """What each published figure counts.
 
@@ -663,6 +692,13 @@ report, both correct, both previously labelled "hours unused". A report whose
 stated purpose is that a reader can reproduce the number they are shown is the
 worst possible place to print two values under one name."""
 
+
+HEADLINE_TOLERANCES: dict[str, float] = {"pace": 0.0005}
+"""Per-figure overrides of the absolute tolerance below.
+
+Pace is a ratio rounded to four decimal places; against a value near 0.75
+the half-unit tolerance that suits the summed figures would accept literally
+any pace, which is a check in name only."""
 
 HEADLINE_TOLERANCE = 0.5
 """Absolute agreement required on a published headline.
@@ -713,7 +749,8 @@ def check_published_headlines(warehouse: Path,
         for key, sql in HEADLINE_SQL.items():
             result = ParityResult(key=f"published.{key}",
                                   label=f"{key} — {HEADLINE_SCOPE[key]}",
-                                  tolerance=HEADLINE_TOLERANCE)
+                                  tolerance=HEADLINE_TOLERANCES.get(
+                                      key, HEADLINE_TOLERANCE))
             if key not in headline:
                 result.error = "not present in the published payload"
                 results.append(result)

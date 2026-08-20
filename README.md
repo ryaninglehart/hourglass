@@ -23,11 +23,17 @@ This pipeline reads them together, and then tells a person what to do about it.
 ## Run it
 
 ```bash
+# Python 3.11+
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 make all
 ```
 
-A few seconds. Then three files are worth opening, in this order:
+About ten seconds. No time to install anything? [`samples/`](samples/) holds
+one real run's reports, committed — start with
+[`samples/weekly_digest.md`](samples/weekly_digest.md).
+
+Then three files are worth opening, in this order:
 
 | File | What it is |
 |---|---|
@@ -52,7 +58,7 @@ refusal is the part of this project worth looking at first.
 ```
 make gate         watch it refuse to publish              (exit 1)
 make run          acknowledge in writing, publish         (exit 0)
-make check        lint, 459 tests, gate, publish, analytics, data dictionary
+make check        lint, 461 tests, gate, publish, analytics, data dictionary
 make mutation     mutation-test disclosure.py — see docs/MUTATION.md
 make prove        break it on purpose; see what catches it
 make benchmark    time it at 1x, 4x and 12x scale
@@ -237,7 +243,8 @@ passing through a frame the gate was handed — a check's sample rows, an aggreg
 assembled after the gate ran, a log line. The `verify` task gives up on knowing
 what a file means and reads it as text instead: `phi.scan_published_artifacts`
 re-opens an enumerated list of paths and searches for raw source identifiers. A
-finding raises, cannot be acknowledged, and deletes the offending files.
+finding raises, cannot be acknowledged, and withdraws the offending files,
+restoring the previous published build.
 
 That gap was not hypothetical. The gate originally inspected only the eight
 warehouse tables, so the dashboard published raw client identifiers through
@@ -245,14 +252,17 @@ quality-check samples while every frame-level check reported clean. A boundary
 that covers most of the exits is not a boundary. Full write-up: INC-001 in
 [`docs/INCIDENTS.md`](docs/INCIDENTS.md).
 
-**The list of paths is worth stating exactly**, because a scan described more
-broadly than it runs is the same defect it exists to catch. Scanned: the BI CSVs
-(globbed from the export directory, eight of them today), `dashboard_data.json`,
-`relationships.md`, `quality_report.md`, `quality_report.json`,
-`weekly_digest.md`, the JSON-lines run log, and `dashboard.html`. **Not**
-scanned: `metric_parity.md`, `data_diff.md`, `benchmark.md`, and the SQLite
-files, which hold raw identifiers by design and sit inside the boundary rather
-than crossing it. `verify` is also skipped entirely on a blocked run, which is
+**The list of paths is no longer a list**, because a scan described more
+broadly than it runs is the same defect it exists to catch — and that is not
+hypothetical either. The list was written out by hand, and it drifted:
+`metric_parity.md` and `data_diff.md` were published, committed to `samples/`,
+and never scanned, while the docstring above the scan said "every published
+file" (INC-010). Scanned now: everything in the export directory — the BI CSVs,
+eight of them today, `dashboard_data.json`, `relationships.md` — everything in
+the report directory, including the parity report after its published-headline
+section is appended, and `dashboard.html`. **Not** scanned: the SQLite files,
+which hold raw identifiers by design and sit inside the boundary rather than
+crossing it. `verify` is also skipped entirely on a blocked run, which is
 sound — nothing was published — but it means a quarantined build's exports are
 never read.
 
@@ -261,9 +271,9 @@ never read.
 exits, and `pipeline_runs.jsonl` is flushed by the orchestrator after the task
 loop finishes, so `verify` opens the *previous* run's copy of each or, on a
 fresh clone, no file at all. The count printed at the end of the run says so
-without being asked: a cold `make clean && make run` reports **13 artifacts**,
-the next `make run` reports **14** now that a run log exists, and it reaches
-**15** once `dashboard.html` has been built. The JSON payload the dashboard is
+without being asked: a cold `make clean && make run` reports **15 artifacts**,
+the next `make run` reports **16** now that a run log exists, and it reaches
+**17** once `dashboard.html` has been built. The JSON payload the dashboard is
 built from *is* scanned in the same run, so the data path is covered and the
 rendered HTML is covered on the following build; the run log is covered a run
 behind throughout. That is a gap in the ordering rather than a subtlety, and it
@@ -290,10 +300,11 @@ rigorous answer for multi-dimensional tables with margins in several directions.
 It is correct for the tables published here — one grouping dimension plus a
 total — and not equivalent to the general solution.
 
-**Where it is applied, precisely: the weekly digest, and nowhere else.**
-`digest.py` is the only caller in `src/`. The dashboard, the BI CSVs and the
-quality report publish their counts unsuppressed, which is defensible for the
-figures they actually carry — whole-population counts, 240 children and 1,825
+**Where it is applied, precisely: the weekly digest and the dashboard's
+org-wide child count, and nowhere else.** `digest.py` and one call in
+`export.py` are the only callers in `src/`. The remaining panels, the BI CSVs
+and the quality report publish their counts unsuppressed, which is defensible
+for the figures they actually carry — whole-population counts, 240 children and 1,825
 authorisations — and not because anything checks.
 
 That was not true of one panel until recently, and the exception is the more
@@ -400,7 +411,7 @@ correct: what is broken is the authorisation record, not the number.
 A blocking failure can be released, but not quietly:
 
 ```bash
-python -m hourglass.pipeline --acknowledge \
+PYTHONPATH=src python -m hourglass.pipeline --acknowledge \
   "uom_resolution_coverage=Ticket DE-412. Vendor confirmed the field change \
    and is back-filling. Publishing with coverage stamped on the report."
 ```
@@ -714,7 +725,7 @@ src/hourglass/
   pipeline.py       the twelve tasks and the CLI
 sql/                star_schema.sql (grain on every table) · analytics.sql (10 queries)
 bi/                 measures.dax (27 measures)
-tests/              459 tests across 15 files, including property-based tests
+tests/              461 tests across 15 files, including property-based tests
 scripts/            run_analytics · build_dashboard · build_data_dictionary
                     · benchmark · mutation
 docs/               ANOMALY.md · INCIDENTS.md · MUTATION.md · DEFENSE.md
@@ -725,7 +736,7 @@ docs/               ANOMALY.md · INCIDENTS.md · MUTATION.md · DEFENSE.md
 
 ## How it is tested
 
-459 tests across 15 files, plus three mechanisms that answer questions a test
+461 tests across 15 files, plus three mechanisms that answer questions a test
 count cannot.
 
 **Idempotency is asserted, not assumed.** `tests/test_pipeline.py` runs the whole
@@ -837,9 +848,9 @@ cases. `digest.py` routes its centre-pooling decision on that flag column, and
 response. The survivors are the finding, not the score.
 
 It is a periodic audit rather than a CI gate. `disclosure.py` takes about four
-seconds of mutant execution; `transform.py` did not finish in eight minutes and
-its figures come from a partial sweep, which is stated in `docs/MUTATION.md`
-rather than rounded away.
+seconds of mutant execution; the package-wide sweep was stopped at the
+eight-minute mark, by which point `transform.py`'s own 942 mutants had
+completed — `docs/MUTATION.md` reports completed figures only.
 
 ---
 
@@ -880,12 +891,13 @@ carefully by its author.
   tables published here, one grouping dimension plus a total. Not equivalent to
   linear-programming cell suppression, which is what a multi-dimensional table
   with margins in several directions needs.
-- **Cell suppression is applied in the digest and nowhere else.** `digest.py` is
-  `disclosure`'s only caller in `src/`. The dashboard and the BI exports publish
-  their counts unsuppressed, which is defensible at the population grain they
+- **Cell suppression is applied at two call sites and no chokepoint.**
+  `digest.py` and the org-wide child count in `export.py` are `disclosure`'s
+  only callers in `src/`. The remaining panels and the BI exports publish their
+  counts unsuppressed, which is defensible at the population grain they
   currently use and is not enforced by anything. The dashboard's at-risk list
-  reached that grain by having `center_name` removed from it in `export.py`,
-  which is a fix at one call site, not a chokepoint.
+  reached that grain by having `center_name` removed from it in `export.py` —
+  fixes at call sites, not a chokepoint.
 - **`hourglass.sources` is not on the pipeline's path.** The payer API client is
   exercised only by `tests/test_sources.py` against an in-process fake server;
   nothing in `src/` or `scripts/` imports it. Authorisations arrive here as a
@@ -896,20 +908,41 @@ carefully by its author.
   the process mints an ephemeral one, so this week's exports cannot be joined to
   last week's outside the boundary. That is the deliberate trade against a
   checked-in constant, and it is a real loss of utility, not a free win.
-- **`verify` reads `dashboard.html` and `pipeline_runs.jsonl` one run late** and
-  never reads `metric_parity.md`, `data_diff.md` or `benchmark.md` at all. The
-  rendered HTML is built after the pipeline exits and the run log is flushed
-  after the task loop ends, so both are the previous run's copy; the three
-  reports are simply not on the list.
-- **The published-headline check covers five figures**, not the whole payload.
-  `hours_unused`, `units_authorized`, `units_delivered`, `active_authorizations`
-  and `closed_authorizations` are re-derived from the warehouse. The at-risk
-  table, the per-payer and per-discipline breakdowns and the assumption spread
-  are not, so the same class of defect INC-005 records is still possible in
-  every panel below the tiles.
+- **`verify` reads `dashboard.html` and `pipeline_runs.jsonl` one run late.**
+  The rendered HTML is built after the pipeline exits and the run log is
+  flushed after the task loop ends, so both are the previous run's copy. The
+  hand-written scan list that skipped `metric_parity.md` and `data_diff.md`
+  entirely is now a glob over both output directories — INC-010 has the
+  write-up.
+- **The published-headline check covers seven figures**, not the whole payload.
+  `hours_unused`, `units_authorized`, `units_delivered`,
+  `expected_units_to_date`, `pace`, `active_authorizations` and
+  `closed_authorizations` are re-derived from the warehouse — pace joined the
+  list only after a sabotage published 76.0% for 75.1% unchallenged (INC-009).
+  The at-risk table, the per-payer and per-discipline breakdowns and the
+  assumption spread are not, so the class of defect INC-005 records is still
+  possible in every panel below the tiles.
 - **Mutation testing covers two of eighteen modules.** `phi.py` and `quality.py`
   carry guarantees at least as load-bearing as the two that were scored, and
   nothing is known about the grip of their tests.
+- **Patient identity is assumed clean.** The generator issues one `client_id`
+  per child across all three source systems, so identity resolution — the first
+  thing a real EHR or payer integration breaks — has no work to do here.
+  `check_session_reconciliation` catches hard mismatches loudly; the same child
+  under two identifiers is invisible by construction, and no matching, whether
+  deterministic or probabilistic against an MPI, exists.
+- **A stale build looks like a fresh one.** A blocked run leaves the previous
+  build serving — deliberately — but nothing measures how old the serving build
+  is. After a week of blocked runs the digest still presents last-good numbers
+  with only the `as_of` date to give it away: no freshness check, no age
+  warning, no alerting.
+- **The entrance has no contract.** Unknown columns fail closed on the way out.
+  On the way in, a renamed source column dies as a bare `KeyError` in
+  `conform`, and an added one is silently dropped by the explicit column
+  selections in `transform.py` before the fail-closed layer can see it.
+- **No history of check results is kept.** Each run's quality report overwrites
+  the last, and `run_log` keeps blocking failures only, so drift in WARN-level
+  results across weeks is invisible unless somebody diffs reports by hand.
 - **Nothing pins the environment a test runs in, beyond AWS credentials.**
   INC-007 was a test whose result was decided by the host rather than by the
   code, and the fix declares the credential environment inside the tests that
@@ -927,13 +960,14 @@ Written in August 2026 as a worked example for a junior AI data engineering role
 at a paediatric autism provider — the thing a first sprint would plausibly ask
 for: a well-scoped pipeline, a Kimball model, quality checks, an anomaly to
 investigate, and a report. Built with AI coding assistance throughout, and
-verified at every step.
+verified at every step. Developed in a private repository and squashed for
+publication, which is why the incident log runs longer than the commit log.
 
 The verification is the part worth reading. The gate that refuses to publish, the
 boundary that reads the published bytes instead of trusting configuration, the
 parity check that recomputes every registered metric in SQL before anything is
 published and the headline check that re-derives the published tiles after,
-the 459 tests, and the assertion that running it twice
+the 461 tests, and the assertion that running it twice
 produces an identical warehouse are what turn generated code into something you
 can put a number in front of a payer with.
 

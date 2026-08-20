@@ -93,6 +93,45 @@ class TestIdempotency:
         pd.testing.assert_frame_equal(carried.reset_index(drop=True), before)
 
 
+class TestVerifyRollback:
+    def test_a_failed_verify_restores_the_previous_published_build(
+            self, workspace, acknowledgement, monkeypatch):
+        """A run that dies after writing must not leave its artifacts serving.
+
+        The warehouse has had this guarantee from the start -- quarantine,
+        previous build untouched. The exports did not: a verify failure left
+        the failed run's payload, digest and CSVs on disk while the console
+        said nothing was published. Two runs: one good, one that fails at
+        verify, and the artifacts on disk afterwards must be the first run's.
+        """
+        from hourglass import metrics
+
+        workspace.reset()
+        first = pipeline.run(acknowledgements=acknowledgement,
+                             prefer_s3=False, quiet=True)
+        assert first["published"] is True
+        payload_path = pipeline.EXPORT_DIR / "dashboard_data.json"
+        digest_path = pipeline.REPORT_DIR / "weekly_digest.md"
+        good_payload = payload_path.read_bytes()
+        good_digest = digest_path.read_bytes()
+
+        def disagreeing_headlines(warehouse, payload):
+            return [metrics.ParityResult(
+                key="published.hours_unused", label="hours_unused (forced)",
+                sql_value=1.0, frame_value=99999.0, tolerance=0.5)]
+
+        monkeypatch.setattr(metrics, "check_published_headlines",
+                            disagreeing_headlines)
+        second = pipeline.run(acknowledgements=acknowledgement,
+                              prefer_s3=False, quiet=True)
+        assert second["succeeded"] is False
+        assert second["run"].failed_task.name == "verify"
+        # The artifacts a reader would consume are the first run's, bytes
+        # for bytes -- not the failed run's, and not missing.
+        assert payload_path.read_bytes() == good_payload
+        assert digest_path.read_bytes() == good_digest
+
+
 class TestGateBehaviour:
     def test_unacknowledged_block_halts_publication(self):
         result = pipeline.run(acknowledgements={}, prefer_s3=False, quiet=True)
@@ -222,7 +261,10 @@ class TestPublishedOutputs:
         h = payload["headline"]
         assert 0 < h["pace"] < 2
         assert h["active_authorizations"] > 0
-        assert h["at_risk_count"] == len(payload["at_risk"]) or h["at_risk_count"] >= 25
+        # An exact identity. The previous disjunct (== len or >= 25) was
+        # always satisfied by its right half on generated data, so a payload
+        # shipping a headline count over an emptied worklist passed.
+        assert len(payload["at_risk"]) == min(h["at_risk_count"], 25)
         assert payload["meta"]["synthetic"] is True
 
     def test_every_bi_table_is_exported(self, published_run):

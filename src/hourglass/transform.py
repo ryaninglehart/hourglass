@@ -255,12 +255,17 @@ def build_fact_session(
     in_window = df["service_date"].between(df["valid_from"], df["valid_to"])
     df = df.loc[in_window].copy()
 
-    df = df.merge(dim_provider[["provider_key", "provider_id"]], on="provider_id", how="left")
+    # validate: a duplicated dimension row in any of these merges would
+    # silently multiply fact rows. The dimensions are built unique today;
+    # validate makes "today" a loud assertion instead of an assumption.
+    df = df.merge(dim_provider[["provider_key", "provider_id"]],
+                  on="provider_id", how="left", validate="many_to_one")
     df = df.merge(dim_service[["service_key", "service_code"]].astype({"service_code": str}),
                   left_on=df["service_code"].astype(str), right_on="service_code",
-                  how="left", suffixes=("", "_svc"))
+                  how="left", suffixes=("", "_svc"), validate="many_to_one")
     df["service_key"] = df["service_key"].fillna(0).astype(int)
-    df = df.merge(dim_center[["center_key", "center_id"]], on="center_id", how="left")
+    df = df.merge(dim_center[["center_key", "center_id"]], on="center_id",
+                  how="left", validate="many_to_one")
 
     df["is_completed"] = df["status"].eq("completed")
     df["is_cancelled"] = df["status"].eq("cancelled")
@@ -323,9 +328,10 @@ def build_fact_authorization(
 
     df = df.merge(dim_service[["service_key", "service_code"]].astype({"service_code": str}),
                   left_on=df["service_code"].astype(str), right_on="service_code",
-                  how="left", suffixes=("", "_svc"))
+                  how="left", suffixes=("", "_svc"), validate="many_to_one")
     df["service_key"] = df["service_key"].fillna(0).astype(int)
-    df = df.merge(dim_payer[["payer_key", "payer_id"]], on="payer_id", how="left")
+    df = df.merge(dim_payer[["payer_key", "payer_id"]], on="payer_id",
+                  how="left", validate="many_to_one")
 
     df["authorized_days"] = (df["period_end"] - df["period_start"]).dt.days + 1
 

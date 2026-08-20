@@ -143,8 +143,15 @@ class TestContent:
         assert "### Temecula" in out
 
     def test_marks_value_based_contracts(self):
-        out = digest.build_digest(at_risk_frame(), headline(), quality(), META)
-        assert "⬥" in out
+        frame = at_risk_frame()
+        out = digest.build_digest(frame, headline(), quality(), META)
+        # Counted, not merely present: marking every row regardless of
+        # contract type also put "⬥" in the output and passed.
+        value_based = int((frame["contract_type"] == "value_based").sum())
+        marked_rows = sum("⬥" in line for line in out.splitlines()
+                          if line.strip().startswith("|"))
+        assert value_based > 0
+        assert marked_rows == value_based
 
     def test_includes_an_action_list(self):
         out = digest.build_digest(at_risk_frame(), headline(), quality(), META)
@@ -201,9 +208,24 @@ class TestContent:
 
 class TestCaveats:
     def test_quality_caveat_appears_when_coverage_is_low(self):
+        # The test previously asserted "2,933 sessions" -- the check's
+        # affected_rows, which sweeps in cancellations, no-shows and unmapped
+        # codes and was being attributed wholesale to the April field change.
+        # The caveat now quotes the completed-session count from the
+        # assumption-spread comparison, which is the number that actually
+        # understates delivered care.
+        out = digest.build_digest(at_risk_frame(), headline(), quality(0.944),
+                                  META, comparison={"affected_sessions": 2607})
+        assert "understated" in out
+        assert "2,607 completed sessions" in out
+        assert "2,933" not in out
+
+    def test_quality_caveat_falls_back_to_affected_rows(self):
+        # Without the comparison dict the caveat still appears, quoting the
+        # only count it has.
         out = digest.build_digest(at_risk_frame(), headline(), quality(0.944), META)
         assert "understated" in out
-        assert "2,933 sessions" in out
+        assert "2,933" in out
 
     def test_caveat_precedes_the_action_list(self):
         """Nobody reads footnotes before picking up the phone."""
@@ -233,8 +255,15 @@ class TestPrivacy:
         assert "CLI-00001" in out          # so the check is capable of failing
 
     def test_no_provider_names_appear(self):
-        out = digest.build_digest(at_risk_frame(), headline(), quality(), META)
+        frame = at_risk_frame()
+        # Give the digest a provider identifier it must ignore. Without one
+        # in the frame the assertion below was true of any implementation,
+        # including one that printed the provider of every row.
+        frame["provider_id"] = "PRV-0042"
+        frame["provider_name"] = "Dr Example"
+        out = digest.build_digest(frame, headline(), quality(), META)
         assert "PRV-" not in out
+        assert "Dr Example" not in out
 
 
 class TestPlainLanguage:
